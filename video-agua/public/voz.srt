@@ -1,0 +1,308 @@
+1
+00:00:00,100 --> 00:00:02,475
+Abres el grifo y sale agua.
+
+2
+00:00:02,425 --> 00:00:03,825
+Limpia.
+
+3
+00:00:03,825 --> 00:00:05,425
+Al instante.
+
+4
+00:00:05,425 --> 00:00:07,787
+Parece lo más normal del mundo.
+
+5
+00:00:07,787 --> 00:00:11,062
+Pero esa agua viajó kilómetros para llegar hasta ti.
+
+6
+00:00:11,062 --> 00:00:15,812
+Pasó por un río, por tanques gigantes y por químicos que la volvieron segura.
+
+7
+00:00:15,812 --> 00:00:20,025
+Y en muchas ciudades subió hasta tu casa sin que ninguna máquina la empujara.
+
+8
+00:00:20,025 --> 00:00:21,712
+Cómo es posible?
+
+9
+00:00:21,712 --> 00:00:25,262
+Hoy vamos a seguir ese viaje invisible, gota a gota.
+
+10
+00:00:25,262 --> 00:00:27,600
+Todo empieza lejos de la ciudad.
+
+11
+00:00:27,600 --> 00:00:33,400
+El agua que tomas sale de tres lugares posibles: un río, un embalse o un pozo subterráneo.
+
+12
+00:00:33,400 --> 00:00:36,687
+La mayoría de ciudades usan ríos o embalses.
+
+13
+00:00:36,687 --> 00:00:42,775
+Para sacar el agua se construye una bocatoma: una estructura en la orilla que desvía parte del río hacia un canal.
+
+14
+00:00:42,775 --> 00:00:47,387
+La bocatoma tiene rejillas que atrapan ramas, hojas y basura grande.
+
+15
+00:00:47,387 --> 00:00:51,100
+Pero ojo: el agua que pasa sigue sin poder tomarse.
+
+16
+00:00:51,100 --> 00:00:55,775
+Tiene tierra, microorganismos y partículas que no se ven a simple vista.
+
+17
+00:00:55,775 --> 00:00:58,312
+A esta agua se le llama agua cruda.
+
+18
+00:00:58,312 --> 00:01:02,862
+Y antes de llegar a tu casa, tiene que pasar por una fábrica muy especial.
+
+19
+00:01:02,862 --> 00:01:05,712
+Esa fábrica es la planta de tratamiento.
+
+20
+00:01:05,712 --> 00:01:08,775
+Aquí el agua cruda pasa por cinco etapas.
+
+21
+00:01:08,775 --> 00:01:10,862
+Cada una tiene una misión.
+
+22
+00:01:10,862 --> 00:01:13,437
+Etapa uno: coagulación.
+
+23
+00:01:13,437 --> 00:01:17,250
+Se agrega un químico, normalmente sulfato de aluminio.
+
+24
+00:01:17,250 --> 00:01:21,562
+Las partículas de suciedad tienen carga eléctrica y se repelen entre sí.
+
+25
+00:01:21,562 --> 00:01:25,700
+Este químico anula esa carga, y la suciedad empieza a pegarse.
+
+26
+00:01:25,700 --> 00:01:28,362
+Etapa dos: floculación.
+
+27
+00:01:28,362 --> 00:01:31,250
+El agua se mueve despacio con paletas.
+
+28
+00:01:31,250 --> 00:01:36,712
+Las partículas chocan, se unen y forman grumos más grandes, llamados flóculos.
+
+29
+00:01:36,712 --> 00:01:39,675
+Etapa tres: sedimentación.
+
+30
+00:01:39,675 --> 00:01:42,950
+El agua pasa a tanques enormes y casi quietos.
+
+31
+00:01:42,950 --> 00:01:46,787
+Los flóculos pesan más que el agua, así que caen al fondo.
+
+32
+00:01:46,787 --> 00:01:49,625
+El agua de arriba ya se ve mucho más clara.
+
+33
+00:01:49,625 --> 00:01:52,312
+Etapa cuatro: filtración.
+
+34
+00:01:52,312 --> 00:01:55,125
+El agua atraviesa capas de arena y grava.
+
+35
+00:01:55,125 --> 00:02:00,462
+Funcionan como un colador gigante que atrapa las partículas más pequeñas que no alcanzaron a caer.
+
+36
+00:02:00,462 --> 00:02:03,250
+Etapa cinco: desinfección.
+
+37
+00:02:03,250 --> 00:02:07,337
+El agua ya se ve limpia, pero todavía puede tener bacterias.
+
+38
+00:02:07,337 --> 00:02:09,487
+Por eso se le agrega cloro.
+
+39
+00:02:09,487 --> 00:02:14,112
+Y aquí hay un detalle clave: se deja un poquito de cloro en el agua a propósito.
+
+40
+00:02:14,112 --> 00:02:17,900
+Así la sigue protegiendo durante todo el viaje por las tuberías.
+
+41
+00:02:17,900 --> 00:02:19,962
+Ahora el agua es potable.
+
+42
+00:02:19,962 --> 00:02:22,500
+Pero todavía está lejos de tu grifo.
+
+43
+00:02:22,500 --> 00:02:25,737
+Aquí viene el secreto que te prometí al principio.
+
+44
+00:02:25,737 --> 00:02:28,887
+La planta envía el agua a tanques de almacenamiento.
+
+45
+00:02:28,887 --> 00:02:33,675
+Y fíjate dónde están: casi siempre en lo alto de una loma o encima de una torre.
+
+46
+00:02:33,675 --> 00:02:35,425
+No es casualidad.
+
+47
+00:02:35,425 --> 00:02:37,100
+El agua pesa.
+
+48
+00:02:37,100 --> 00:02:41,975
+Cuando está en alto, ese peso empuja hacia abajo y crea presión en las tuberías.
+
+49
+00:02:41,975 --> 00:02:47,000
+Por cada diez metros de altura, la presión aumenta aproximadamente una atmósfera.
+
+50
+00:02:47,000 --> 00:02:52,337
+Eso significa que un tanque en una loma puede empujar el agua por toda la ciudad sin gastar energía.
+
+51
+00:02:52,337 --> 00:02:54,237
+Solo con la gravedad.
+
+52
+00:02:54,237 --> 00:02:57,362
+Entonces, ¿para qué sirven las bombas?
+
+53
+00:02:57,362 --> 00:03:02,725
+Para subir el agua hasta esos tanques, o para llevarla a zonas que están más altas que el tanque.
+
+54
+00:03:02,725 --> 00:03:05,987
+Pero una vez arriba, la gravedad hace el resto.
+
+55
+00:03:05,987 --> 00:03:09,212
+Por eso ves torres de agua en tantas ciudades del mundo.
+
+56
+00:03:09,212 --> 00:03:11,350
+Son baterías de presión.
+
+57
+00:03:11,350 --> 00:03:15,262
+Desde el tanque, el agua baja por la red de distribución.
+
+58
+00:03:15,262 --> 00:03:20,187
+Es un sistema de tuberías enterradas bajo las calles, como las venas de la ciudad.
+
+59
+00:03:20,187 --> 00:03:23,950
+Primero van las tuberías principales, muy anchas.
+
+60
+00:03:23,950 --> 00:03:29,537
+De ellas salen tuberías secundarias, cada vez más delgadas, que recorren cada barrio.
+
+61
+00:03:29,537 --> 00:03:34,712
+Frente a tu casa, una tubería pequeña llamada acometida conecta la red con tu vivienda.
+
+62
+00:03:34,712 --> 00:03:38,612
+Justo ahí está el medidor, que cuenta cada litro que usas.
+
+63
+00:03:38,612 --> 00:03:42,550
+Y por qué a veces el agua sale con poca fuerza en los pisos altos?
+
+64
+00:03:42,550 --> 00:03:45,850
+Por la misma regla de la altura, pero al revés.
+
+65
+00:03:45,850 --> 00:03:48,825
+Cada piso que subes le resta presión al agua.
+
+66
+00:03:48,825 --> 00:03:53,312
+Por eso los edificios altos tienen sus propias bombas y tanques en la azotea.
+
+67
+00:03:53,312 --> 00:03:55,325
+Repasemos el viaje.
+
+68
+00:03:55,325 --> 00:03:57,325
+El agua sale de un río.
+
+69
+00:03:57,325 --> 00:03:59,425
+La bocatoma la captura.
+
+70
+00:03:59,425 --> 00:04:02,175
+La planta la limpia en cinco etapas.
+
+71
+00:04:02,175 --> 00:04:05,200
+Un tanque en lo alto le da presión con la gravedad.
+
+72
+00:04:05,200 --> 00:04:08,687
+Y una red de tuberías invisibles la lleva hasta tu grifo.
+
+73
+00:04:08,687 --> 00:04:14,075
+La próxima vez que abras el grifo, vas a saber todo lo que pasó para que esa agua llegara hasta ti.
+
+74
+00:04:14,075 --> 00:04:16,300
+Pero el viaje no termina aquí.
+
+75
+00:04:16,300 --> 00:04:19,287
+Qué pasa con el agua cuando se va por el desagüe?
+
+76
+00:04:19,287 --> 00:04:21,775
+Eso lo vemos en el próximo video.
+
+77
+00:04:21,940 --> 00:04:25,490
+Suscríbete a Ingeniería Invisible para no perdértelo.
+

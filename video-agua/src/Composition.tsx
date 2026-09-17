@@ -1,0 +1,171 @@
+import {AbsoluteFill, Audio, OffthreadVideo, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+
+export type Caption = {start: number; end: number; text: string};
+export type Etiqueta = {texto: string; cuando?: string};
+export type Toma = {desde: string; clip: string; buscar: string; seccion?: string; etiquetas?: Etiqueta[]};
+export type VideoProps = {captions: Caption[]; plan: Toma[]};
+
+const AMARILLO = '#f5c400';
+const OSCURO = '#0a1217';
+const FUNDIDO = 12;
+const fijo = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
+
+const norm = (s: string) =>
+  s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+const dosDigitos = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+
+const buscarInicio = (captions: Caption[], frase: string | undefined, desde: number) => {
+  if (!frase) return null;
+  const f = norm(frase);
+  if (!f) return null;
+
+  const directo = captions.find((x) => x.start >= desde - 0.01 && norm(x.text).includes(f));
+  if (directo) return directo.start;
+
+  const posibles = captions.filter((x) => x.start >= desde - 0.01);
+  let acumulado = '';
+  const marcas: number[] = [];
+  for (const c of posibles) {
+    acumulado += (acumulado ? ' ' : '') + norm(c.text);
+    marcas.push(acumulado.length);
+  }
+
+  const ubicar = (pos: number) => {
+    const i = marcas.findIndex((fin) => fin > pos);
+    return i >= 0 ? posibles[i].start : null;
+  };
+
+  const pos = acumulado.indexOf(f);
+  if (pos >= 0) return ubicar(pos);
+
+  const palabras = f.split(' ');
+  for (let corte = palabras.length - 1; corte >= 2; corte--) {
+    const p = acumulado.indexOf(palabras.slice(0, corte).join(' '));
+    if (p >= 0) return ubicar(p);
+  }
+  return null;
+};
+
+const EtiquetaBox = ({texto, desdeFrame, posicion}: {texto: string; desdeFrame: number; posicion: number}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const inicio = desdeFrame + posicion * 8;
+  if (frame < inicio) return null;
+  const s = spring({frame: frame - inicio, fps, config: {damping: 14, stiffness: 120}});
+  const pulso = 1 + Math.sin((frame - inicio) / 6) * 0.25;
+  return (
+    <div style={{position: 'absolute', right: 80, top: 190 + posicion * 140, display: 'flex', alignItems: 'center', gap: 18, opacity: Math.min(1, s), transform: `translateX(${(1 - s) * 140}px)`}}>
+      <div style={{width: 20, height: 20, borderRadius: 10, background: AMARILLO, transform: `scale(${pulso})`, boxShadow: `0 0 24px ${AMARILLO}`}} />
+      <div style={{background: 'rgba(10,18,23,0.85)', borderLeft: `8px solid ${AMARILLO}`, color: '#fff', fontSize: 46, fontWeight: 800, padding: '14px 30px', letterSpacing: 1, textTransform: 'uppercase', boxShadow: '0 10px 30px rgba(0,0,0,0.5)'}}>
+        {texto}
+      </div>
+    </div>
+  );
+};
+
+const TomaVideo = ({toma, indice, inicio, fin, captions}: {toma: Toma; indice: number; inicio: number; fin: number; captions: Caption[]}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const dur = Math.max(1, (fin - inicio) * fps + FUNDIDO);
+  const opacidad = interpolate(frame, [0, FUNDIDO], [0, 1], fijo);
+  const zoom = interpolate(frame, [0, dur], indice % 2 === 0 ? [1.05, 1.18] : [1.18, 1.05], fijo);
+  const mover = interpolate(frame, [0, dur], indice % 2 === 0 ? [-25, 25] : [25, -25], fijo);
+
+  return (
+    <AbsoluteFill style={{opacity: opacidad, overflow: 'hidden'}}>
+      <AbsoluteFill style={{transform: `scale(${zoom}) translateX(${mover}px)`}}>
+        <OffthreadVideo src={staticFile(`clips/${toma.clip}`)} muted style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+      </AbsoluteFill>
+      {(toma.etiquetas ?? []).map((e, k) => {
+        const s = buscarInicio(captions, e.cuando, inicio);
+        const seg = Math.max(0, (s ?? inicio + 1) - inicio);
+        return <EtiquetaBox key={k} texto={e.texto} desdeFrame={Math.round(seg * fps)} posicion={k} />;
+      })}
+    </AbsoluteFill>
+  );
+};
+
+const TarjetaSeccion = ({numero, titulo}: {numero: number; titulo: string}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const entra = spring({frame, fps, config: {damping: 200}});
+  const sale = interpolate(frame, [2.4 * fps, 3 * fps], [1, 0], fijo);
+  const barra = interpolate(frame, [5, 25], [0, 1], fijo);
+  return (
+    <AbsoluteFill style={{background: `rgba(10,18,23,${0.6 * sale})`, justifyContent: 'center', paddingLeft: 140, opacity: sale}}>
+      <div style={{transform: `translateX(${(1 - entra) * -220}px)`}}>
+        <div style={{color: AMARILLO, fontSize: 120, fontWeight: 900, lineHeight: 1}}>{dosDigitos(numero)}</div>
+        <div style={{width: 520 * barra, height: 10, background: AMARILLO, margin: '20px 0'}} />
+        <div style={{color: '#fff', fontSize: 100, fontWeight: 900, textTransform: 'uppercase', textShadow: '0 6px 30px rgba(0,0,0,0.7)'}}>{titulo}</div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+export const MyComposition = ({captions, plan}: VideoProps) => {
+  const frame = useCurrentFrame();
+  const {fps, durationInFrames} = useVideoConfig();
+  const t = frame / fps;
+
+  const inicios: number[] = [];
+  plan.forEach((toma, i) => {
+    const previo = i === 0 ? 0 : inicios[i - 1];
+    const s = i === 0 ? 0 : buscarInicio(captions, toma.desde, previo + 0.5);
+    inicios.push(s ?? previo);
+  });
+
+  let contador = 0;
+  const secciones = plan
+    .map((toma, i) => (toma.seccion ? {titulo: toma.seccion, frame: Math.round(inicios[i] * fps), numero: ++contador} : null))
+    .filter((s): s is {titulo: string; frame: number; numero: number} => s !== null);
+
+  const actual = captions.find((c) => t >= c.start && t < c.end);
+  const pop = actual ? spring({frame: frame - Math.round(actual.start * fps), fps, config: {damping: 15, stiffness: 200}}) : 1;
+
+  return (
+    <AbsoluteFill style={{backgroundColor: OSCURO, fontFamily: 'Arial, sans-serif'}}>
+      <Audio src={staticFile('voz.mp3')} />
+
+      {plan.map((toma, i) => {
+        const desde = Math.round(inicios[i] * fps);
+        const hasta = i + 1 < plan.length ? Math.round(inicios[i + 1] * fps) : durationInFrames;
+        if (hasta <= desde) return null;
+        return (
+          <Sequence key={i} from={desde} durationInFrames={hasta - desde + FUNDIDO}>
+            <TomaVideo toma={toma} indice={i} inicio={inicios[i]} fin={hasta / fps} captions={captions} />
+          </Sequence>
+        );
+      })}
+
+      <AbsoluteFill style={{background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)'}} />
+      <AbsoluteFill style={{background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 35%)'}} />
+      <AbsoluteFill style={{backgroundImage: 'linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)', backgroundSize: '80px 80px'}} />
+
+      {secciones.map((s) => (
+        <Sequence key={s.numero} from={s.frame} durationInFrames={Math.round(3 * fps)}>
+          <TarjetaSeccion numero={s.numero} titulo={s.titulo} />
+        </Sequence>
+      ))}
+
+      <div style={{position: 'absolute', top: 0, left: 0, right: 0, height: 8, background: 'rgba(255,255,255,0.15)'}}>
+        <div style={{width: `${(frame / durationInFrames) * 100}%`, height: '100%', background: AMARILLO}} />
+        {secciones.map((s) => (
+          <div key={s.numero} style={{position: 'absolute', top: 0, left: `${(s.frame / durationInFrames) * 100}%`, width: 4, height: 8, background: '#fff'}} />
+        ))}
+      </div>
+
+      <div style={{position: 'absolute', top: 44, left: 60, color: '#fff', fontSize: 30, fontWeight: 900, letterSpacing: 3, textShadow: '0 2px 12px rgba(0,0,0,0.8)'}}>
+        INGENIERÍA <span style={{color: AMARILLO}}>INVISIBLE</span>
+      </div>
+
+      {actual && (
+        <div style={{position: 'absolute', bottom: 70, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 180px'}}>
+          <div style={{color: '#fff', fontSize: 58, fontWeight: 900, textAlign: 'center', lineHeight: 1.3, transform: `scale(${0.92 + 0.08 * pop})`, textShadow: '0 0 14px rgba(0,0,0,0.95), 0 4px 0 #000'}}>
+            {actual.text}
+          </div>
+        </div>
+      )}
+    </AbsoluteFill>
+  );
+};
