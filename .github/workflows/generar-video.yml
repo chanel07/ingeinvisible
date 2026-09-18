@@ -53,7 +53,8 @@ jobs:
         run: |
           rm -rf public/clips
           node scripts/descargar-clips.mjs
-
+         - name: Instalar FFmpeg
+           run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
       - name: Comprimir clips
         working-directory: video-agua
         run: |
