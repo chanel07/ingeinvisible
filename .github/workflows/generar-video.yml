@@ -46,10 +46,11 @@ jobs:
           TEMA: ${{ inputs.tema }}
         run: node scripts/generar-guion.mjs
 
-      - name: Generar voz con edge-tts
-        working-directory: video-agua
-        run: edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt
-
+               - name: Limpiar guion y generar voz
+           working-directory: video-agua
+           run: |
+             sed -i 's/#//g; s/\*//g; s/_//g; s/\[//g; s/\]//g; s/---//g' public/guion.txt
+             edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt
       - name: Descargar clips de Pexels
         working-directory: video-agua
         env:
