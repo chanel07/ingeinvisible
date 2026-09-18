@@ -41,8 +41,12 @@ jobs:
 
       - name: Generar guion y plan con Gemini
         working-directory: video-agua
-        env:- name:
-      - name: 
+        env:
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+          TEMA: ${{ inputs.tema }}
+        run: node scripts/generar-guion.mjs
+
+      - name: Generar voz con edge-tts
         working-directory: video-agua
         run: edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt
 
