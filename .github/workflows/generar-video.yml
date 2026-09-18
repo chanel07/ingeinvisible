@@ -12,6 +12,8 @@ jobs:
   video:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -71,7 +73,16 @@ jobs:
 
       - name: Comprimir video final
         working-directory: video-agua
-        run: ffmpeg -y -i out/video.mp4 -c:v libx264 -crf 30 -preset veryfast -c:a aac -b:a 128k out/video-final.mp4
+        run: ffmpeg -y -i out/video.mp4 -c:v libx264 -crf 32 -preset veryfast -c:a aac -b:a 96k out/video-final.mp4
+
+      - name: Subir video al repositorio
+        run: |
+          cd video-agua
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -f out/video-final.mp4
+          git commit -m "Video: ${{ inputs.tema }}"
+          git push
 
       - name: Subir video como artefacto
         uses: actions/upload-artifact@v4
