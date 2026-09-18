@@ -37,14 +37,26 @@ const calcular: CalculateMetadataFunction<VideoProps> = async ({props}) => {
 };
 
 export const RemotionRoot = () => (
-  <Composition
-    id="AguaGrifo"
-    component={MyComposition}
-    durationInFrames={300}
-    fps={FPS}
-    width={1920}
-    height={1080}
-    defaultProps={{captions: [], plan: []}}
-    calculateMetadata={calcular}
-  />
+  <>
+    <Composition
+      id="AguaGrifo"
+      component={MyComposition}
+      durationInFrames={300}
+      fps={FPS}
+      width={1920}
+      height={1080}
+      defaultProps={{captions: [], plan: []}}
+      calculateMetadata={calcular}
+    />
+    <Composition
+      id="Short"
+      component={MyComposition}
+      durationInFrames={300}
+      fps={FPS}
+      width={1080}
+      height={1920}
+      defaultProps={{captions: [], plan: []}}
+      calculateMetadata={calcular}
+    />
+  </>
 );
