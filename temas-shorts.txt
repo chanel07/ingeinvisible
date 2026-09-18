@@ -1,6 +1,6 @@
 [x] Por qué el agua caliente congela más rápido que la fría
 [x] Cuánto pesa el aire de tu habitación
-Por qué las tuberías hacen ruido de noche
+[x] Por qué las tuberías hacen ruido de noche
 Por qué los cables de luz no se tocan entre sí
 Cómo aguanta un puente el peso de mil carros
 Qué pasa si cortas la electricidad de toda una ciudad
