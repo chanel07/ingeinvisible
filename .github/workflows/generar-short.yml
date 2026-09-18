@@ -92,14 +92,6 @@ jobs:
         working-directory: video-agua
         run: ffmpeg -y -i out/short.mp4 -c:v libx264 -crf 28 -preset veryfast -c:a aac -b:a 128k out/short-final.mp4
 
-      - name: Subir a YouTube
-        working-directory: video-agua
-        env:
-          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
-        run: node scripts/subir-youtube.mjs out/short-final.mp4 "${{ steps.tema.outputs.TEMA }}" short
-
       - name: Subir Short al repositorio
         run: |
           cd video-agua
