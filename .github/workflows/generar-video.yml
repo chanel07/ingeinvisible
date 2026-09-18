@@ -30,6 +30,9 @@ jobs:
       - name: Instalar edge-tts
         run: pip install edge-tts
 
+      - name: Instalar FFmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+
       - name: Instalar dependencias de Remotion
         working-directory: video-agua
         run: npm ci
@@ -43,18 +46,14 @@ jobs:
 
       - name: Generar voz con edge-tts
         working-directory: video-agua
-        run: |
-          edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt
+        run: edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt
 
       - name: Descargar clips de Pexels
         working-directory: video-agua
         env:
           PEXELS_KEY: ${{ secrets.PEXELS_KEY }}
-        run: |
-          rm -rf public/clips
-          node scripts/descargar-clips.mjs
-         - name: Instalar FFmpeg
-           run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+        run: rm -rf public/clips && node scripts/descargar-clips.mjs
+
       - name: Comprimir clips
         working-directory: video-agua
         run: |
@@ -72,8 +71,7 @@ jobs:
 
       - name: Comprimir video final
         working-directory: video-agua
-        run: |
-          ffmpeg -y -i out/video.mp4 -c:v libx264 -crf 30 -preset veryfast -c:a aac -b:a 128k out/video-final.mp4
+        run: ffmpeg -y -i out/video.mp4 -c:v libx264 -crf 30 -preset veryfast -c:a aac -b:a 128k out/video-final.mp4
 
       - name: Subir video como artefacto
         uses: actions/upload-artifact@v4
