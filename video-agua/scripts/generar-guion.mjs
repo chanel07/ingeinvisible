@@ -32,42 +32,73 @@ REGLAS:
 
 SOLO el JSON.`;
 
-const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${KEY}`;
+const MODELOS = [
+  'gemini-3.6-flash',
+  'gemini-2.5-flash',
+  'gemini-1.5-flash'
+];
+
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function llamarGemini() {
+  for (const modelo of MODELOS) {
+    for (let intento = 1; intento <= 3; intento++) {
+      console.log(`Intento ${intento}/3 con ${modelo}...`);
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${KEY}`;
+      
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          contents: [{parts: [{text: prompt}]}],
+          generationConfig: {temperature: 0.7, maxOutputTokens: 16000}
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const texto = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (texto) {
+          console.log(`Respuesta de ${modelo}`);
+          return texto;
+        }
+      }
+
+      const status = res.status;
+      if (status === 404) {
+        console.log(`Modelo ${modelo} no existe, probando el siguiente...`);
+        break;
+      }
+      if (status === 503 || status === 429) {
+        console.log(`${modelo} saturado (${status}), esperando 30s...`);
+        await esperar(30000);
+        continue;
+      }
+      
+      const err = await res.text();
+      console.error(`Error ${status} con ${modelo}:`, err.substring(0, 200));
+      break;
+    }
+  }
+  return null;
+}
 
 console.log(`Generando guion para: "${TEMA}"...`);
 
-const res = await fetch(url, {
-  method: 'POST',
-  headers: {'Content-Type': 'application/json'},
-  body: JSON.stringify({
-    contents: [{parts: [{text: prompt}]}],
-    generationConfig: {temperature: 0.7, maxOutputTokens: 16000}
-  })
-});
-
-if (!res.ok) {
-  const err = await res.text();
-  console.error(`Error de Gemini (${res.status}):`, err);
-  process.exit(1);
-}
-
-const data = await res.json();
-let texto = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
+const texto = await llamarGemini();
 if (!texto) {
-  console.error('Gemini no devolvio texto');
+  console.error('No se pudo obtener respuesta de ningun modelo');
   process.exit(1);
 }
 
-texto = texto.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+const limpio = texto.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
 
 let resultado;
 try {
-  resultado = JSON.parse(texto);
+  resultado = JSON.parse(limpio);
 } catch (e) {
   console.error('No se pudo parsear el JSON:', e.message);
-  console.error('Primeros 300 chars:', texto.substring(0, 300));
-  console.error('Ultimos 300 chars:', texto.substring(texto.length - 300));
+  console.error('Primeros 300 chars:', limpio.substring(0, 300));
   process.exit(1);
 }
 
