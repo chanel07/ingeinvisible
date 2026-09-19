@@ -5,7 +5,7 @@
 [x] Cómo aguanta un puente el peso de mil carros
 [x] Qué pasa si cortas la electricidad de toda una ciudad
 [x] Por qué las vías del tren tienen piedras debajo
-Cuánta agua gasta un inodoro en cada descarga
+[x] Cuánta agua gasta un inodoro en cada descarga
 Por qué los edificios tienen pararrayos
 Cómo funciona un sensor de movimiento
 Por qué las ruedas de los aviones no explotan al aterrizar
