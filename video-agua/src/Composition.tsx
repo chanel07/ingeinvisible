@@ -123,8 +123,6 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
   });
 
   // 2) Rellenar los huecos repartiendo el tiempo en partes iguales.
-  //    Antes se colapsaban sobre la toma anterior y desaparecian: por eso
-  //    el video se congelaba de la mitad en adelante.
   const inicios: number[] = anclas.map((v) => v ?? 0);
   for (let i = 1; i < anclas.length; i++) {
     if (anclas[i] !== null) continue;
@@ -190,7 +188,7 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
       </div>
 
       {actual && (
-        <div style={{position: 'absolute', bottom: 70, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 180px'}}>
+        <div style={{position: 'absolute', bottom: '22%', left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 12%'}}>
           <div style={{color: '#fff', fontSize: 58, fontWeight: 900, textAlign: 'center', lineHeight: 1.3, transform: `scale(${0.92 + 0.08 * pop})`, textShadow: '0 0 14px rgba(0,0,0,0.95), 0 4px 0 #000'}}>
             {actual.text}
           </div>
