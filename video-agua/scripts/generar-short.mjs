@@ -8,7 +8,7 @@ if (!KEY || !TEMA) {
   process.exit(1);
 }
 
-const prompt = `Eres el guionista del canal "Ingeniería Invisible". Creas Shorts de YouTube: videos verticales de 30 a 50 segundos.
+const prompt = `Eres el guionista del canal "Ingeniería Invisible". Creas Shorts de YouTube: videos verticales de 20 a 25 segundos.
 
 TEMA: ${TEMA}
 
@@ -32,18 +32,29 @@ Ejemplos de primeras frases MALAS (nunca las uses):
 - "La ingenieria esta en todas partes."
 - "Hoy te explico como funciona un ascensor."
 
+LARGO: esto es lo segundo mas importante.
+El guion COMPLETO debe tener entre 50 y 70 palabras. Ni una mas.
+Es muy corto a proposito: la gente abandona los videos largos.
+Si te sobra informacion, BORRALA. Es mejor decir una sola cosa bien que tres a medias.
+No expliques el contexto. No hagas introduccion. Entra directo y sal rapido.
+
+Estructura obligatoria:
+1. El gancho (1 frase)
+2. La explicacion (2 o 3 frases cortas)
+3. El cierre: un dato que sorprenda (1 frase)
+
 Responde SOLO con JSON, sin backticks:
 
 {
-  "guion": "Texto para la voz. 80-120 palabras MAXIMO. Primera frase = el gancho segun las reglas de arriba. Luego explica en 3-4 frases cortas. Cierra con un dato final que sorprenda. NO digas suscribete. Espanol neutro, frases muy cortas.",
+  "guion": "50-70 palabras EXACTAS. Primera frase = el gancho. Luego 2-3 frases de explicacion. Cierre con un dato que sorprenda. NO digas suscribete. Espanol neutro, frases muy cortas.",
   "plan": [
     {"desde":"","clip":"nombre.mp4","buscar":"english Pexels query","etiquetas":[{"texto":"TEXTO CORTO"}]}
   ]
 }
 
 REGLAS DEL PLAN:
-- plan: 4-6 tomas solamente
-- Cada toma dura 5-10 segundos
+- plan: 3 o 4 tomas solamente (el video es corto, no caben mas)
+- Cada toma dura 5-8 segundos
 - buscar: en INGLES, generico y visual
 - etiquetas: maximo 1 por toma, maximo 3 palabras
 - clip: nombre en espanol con guiones .mp4
@@ -102,8 +113,13 @@ try { resultado = JSON.parse(limpio); } catch (e) {
 
 if (!resultado.guion || !resultado.plan) { console.error('Falta guion o plan'); process.exit(1); }
 
-// Aviso si Gemini invento fragmentos que no estan en el guion:
-// esos son los que hacen que las tomas no se ubiquen bien.
+// Control de largo: el video debe quedar en 20-25 segundos.
+const palabras = resultado.guion.trim().split(/\s+/).length;
+const segundos = Math.round(palabras / 2.6);
+console.log(`\nPALABRAS: ${palabras} (aprox ${segundos}s de video)`);
+if (palabras > 85) console.warn('AVISO: el guion salio largo, el Short va a pasar de 30s.');
+
+// Aviso si Gemini invento fragmentos que no estan en el guion.
 const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 const guionNorm = normalizar(resultado.guion);
 let fallos = 0;
@@ -116,7 +132,7 @@ resultado.plan.forEach((toma, i) => {
 });
 if (fallos) console.warn(`${fallos} de ${resultado.plan.length} tomas se van a repartir por tiempo.`);
 
-console.log(`\nPRIMERA FRASE: ${resultado.guion.split(/[.!?]/)[0]}\n`);
+console.log(`PRIMERA FRASE: ${resultado.guion.split(/[.!?]/)[0]}\n`);
 
 await fs.writeFile('public/guion.txt', resultado.guion, 'utf8');
 await fs.writeFile('public/plan.json', JSON.stringify(resultado.plan, null, 2), 'utf8');
