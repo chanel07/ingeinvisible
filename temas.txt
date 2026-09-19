@@ -1,5 +1,5 @@
 [x] Cómo funciona un ascensor
-Por qué los rascacielos no se caen con el viento
+[x] Por qué los rascacielos no se caen con el viento
 Cómo sabe un semáforo cuándo cambiar
 Qué hay debajo de la calle que pisas
 Cómo funciona una nevera explicado sencillo
