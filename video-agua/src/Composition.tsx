@@ -107,13 +107,43 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
   const frame = useCurrentFrame();
   const {fps, durationInFrames} = useVideoConfig();
   const t = frame / fps;
+  const total = durationInFrames / fps;
 
-  const inicios: number[] = [];
+  // 1) Buscar el instante de cada toma. null = no se encontro la frase.
+  const anclas: (number | null)[] = [];
+  let ultimoHallado = 0;
   plan.forEach((toma, i) => {
-    const previo = i === 0 ? 0 : inicios[i - 1];
-    const s = i === 0 ? 0 : buscarInicio(captions, toma.desde, previo + 0.5);
-    inicios.push(s ?? previo);
+    if (i === 0) {
+      anclas.push(0);
+      return;
+    }
+    const s = buscarInicio(captions, toma.desde, ultimoHallado + 0.5);
+    if (s !== null) ultimoHallado = s;
+    anclas.push(s);
   });
+
+  // 2) Rellenar los huecos repartiendo el tiempo en partes iguales.
+  //    Antes se colapsaban sobre la toma anterior y desaparecian: por eso
+  //    el video se congelaba de la mitad en adelante.
+  const inicios: number[] = anclas.map((v) => v ?? 0);
+  for (let i = 1; i < anclas.length; i++) {
+    if (anclas[i] !== null) continue;
+    const antes = inicios[i - 1];
+    let j = i;
+    while (j < anclas.length && anclas[j] === null) j++;
+    const despues = j < anclas.length ? (anclas[j] as number) : total;
+    const partes = j - i + 1;
+    for (let k = i; k < j; k++) {
+      inicios[k] = antes + ((despues - antes) * (k - i + 1)) / partes;
+    }
+    i = j - 1;
+  }
+
+  // 3) Seguridad: nunca retroceder, solaparse ni pasarse del final.
+  for (let i = 1; i < inicios.length; i++) {
+    if (inicios[i] <= inicios[i - 1]) inicios[i] = inicios[i - 1] + 0.5;
+    if (inicios[i] > total - 0.5) inicios[i] = Math.max(inicios[i - 1] + 0.2, total - 0.5);
+  }
 
   let contador = 0;
   const secciones = plan
