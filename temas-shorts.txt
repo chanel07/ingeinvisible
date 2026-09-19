@@ -11,7 +11,7 @@
 [x] Por qué las ruedas de los aviones no explotan al aterrizar
 [x] Cuántos litros de agua usa una ducha de 5 minutos
 [x] Por qué el concreto es tan fuerte
-Qué pasa dentro de un cable de fibra óptica
+[x] Qué pasa dentro de un cable de fibra óptica
 Cómo se mantiene fría la comida en un camión refrigerado
 Por qué los puentes tienen juntas de dilatación
 Cuánta energía produce un rayo
