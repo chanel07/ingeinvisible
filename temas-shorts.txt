@@ -8,7 +8,7 @@
 [x] Cuánta agua gasta un inodoro en cada descarga
 [x] Por qué los edificios tienen pararrayos
 [x] Cómo funciona un sensor de movimiento
-Por qué las ruedas de los aviones no explotan al aterrizar
+[x] Por qué las ruedas de los aviones no explotan al aterrizar
 Cuántos litros de agua usa una ducha de 5 minutos
 Por qué el concreto es tan fuerte
 Qué pasa dentro de un cable de fibra óptica
