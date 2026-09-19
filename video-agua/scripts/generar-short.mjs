@@ -96,7 +96,7 @@ async function llamarGemini() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           contents: [{parts: [{text: prompt}]}],
-          generationConfig: {temperature: 0.9, maxOutputTokens: 4000}
+          generationConfig: {temperature: 0.9, maxOutputTokens: 16000}
         })
       });
       if (res.ok) {
