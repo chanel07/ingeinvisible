@@ -13,7 +13,7 @@
 [x] Por qué el concreto es tan fuerte
 [x] Qué pasa dentro de un cable de fibra óptica
 [x] Cómo se mantiene fría la comida en un camión refrigerado
-Por qué los puentes tienen juntas de dilatación
+[x] Por qué los puentes tienen juntas de dilatación
 Cuánta energía produce un rayo
 Cómo saben los GPS dónde estás
 Por qué los trenes van sobre rieles y no sobre asfalto
