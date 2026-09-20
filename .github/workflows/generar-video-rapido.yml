@@ -104,15 +104,17 @@ jobs:
           echo "PESO: ${MB} MB"
           ffprobe -v error -show_entries format=duration,bit_rate -of default=noprint_wrappers=1 out/video-final.mp4
 
-      - name: Subir video al repositorio
+      - name: Subir video como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-${{ github.run_number }}
+          path: video-agua/out/video-final.mp4
+          retention-days: 7
+
+      - name: Marcar tema usado
         run: |
-          cd video-agua
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add -f out/video-final.mp4
-          git commit -m "Video RAPIDO: ${{ steps.tema.outputs.TEMA }}"
-          git push
-          cd ..
           git add temas.txt
           git commit -m "Marcar tema usado" || true
           git push || true
