@@ -1,8 +1,6 @@
-name: Generar Video
+name: Generar Video VIEJO
 
 on:
-  schedule:
-    - cron: '0 10 * * 1'
   workflow_dispatch:
     inputs:
       tema:
