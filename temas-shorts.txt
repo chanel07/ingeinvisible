@@ -16,7 +16,7 @@
 [x] Por qué los puentes tienen juntas de dilatación
 [x] Cuánta energía produce un rayo
 [x] Cómo saben los GPS dónde estás
-Por qué los trenes van sobre rieles y no sobre asfalto
+[x] Por qué los trenes van sobre rieles y no sobre asfalto
 Qué pasa cuando se rompe un cable submarino de internet
 Cómo funciona un detector de humo
 Por qué las grúas de construcción no se caen
