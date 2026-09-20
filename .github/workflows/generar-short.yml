@@ -1,10 +1,6 @@
-name: Generar Short RAPIDO
+name: Generar Short VIEJO
 
 on:
-  schedule:
-    - cron: '0 11 * * *'
-    - cron: '0 17 * * *'
-    - cron: '0 23 * * *'
   workflow_dispatch:
     inputs:
       tema:
@@ -27,19 +23,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: video-agua/package-lock.json
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
-      - name: Cache de Remotion (Chromium)
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/remotion
-          key: remotion-${{ runner.os }}-v1
 
       - name: Instalar edge-tts
         run: pip install edge-tts
@@ -81,32 +69,24 @@ jobs:
           PEXELS_KEY: ${{ secrets.PEXELS_KEY }}
         run: rm -rf public/clips && node scripts/descargar-clips.mjs
 
-      - name: Preparar clips
+      - name: Comprimir clips
         working-directory: video-agua
         run: |
           mkdir -p public/clips-mini
           for f in public/clips/*.mp4; do
             n=$(basename "$f")
-            ffmpeg -y -loglevel error -i "$f" -t 15 -vf "scale=1080:-2" -c:v libx264 -crf 22 -preset veryfast -an "public/clips-mini/$n"
+            ffmpeg -y -loglevel error -i "$f" -t 15 -vf "scale=720:-2" -c:v libx264 -crf 28 -preset veryfast -an "public/clips-mini/$n"
           done
           rm -rf public/clips
           mv public/clips-mini public/clips
 
       - name: Renderizar Short
         working-directory: video-agua
-        run: |
-          mkdir -p out
-          npx remotion render Short out/short-final.mp4 \
-            --concurrency=2 \
-            --jpeg-quality=95 \
-            --crf=20
+        run: npx remotion render Short out/short.mp4 --concurrency=1 --jpeg-quality=80
 
-      - name: Medir resultado
+      - name: Comprimir Short
         working-directory: video-agua
-        run: |
-          MB=$(du -m out/short-final.mp4 | cut -f1)
-          echo "PESO: ${MB} MB"
-          ffprobe -v error -show_entries format=duration,bit_rate -of default=noprint_wrappers=1 out/short-final.mp4
+        run: ffmpeg -y -i out/short.mp4 -c:v libx264 -crf 28 -preset veryfast -c:a aac -b:a 128k out/short-final.mp4
 
       - name: Subir Short al repositorio
         run: |
