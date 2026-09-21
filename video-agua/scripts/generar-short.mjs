@@ -69,7 +69,7 @@ REGLAS DEL PLAN (el ritmo importa tanto como el guion):
 - plan: 7 u 8 tomas. NO menos de 7.
 - Cada toma dura 2 o 3 segundos solamente. Son cortes rapidos.
 - En un Short, un plano quieto de 6 segundos hace que la gente se salga. Por eso son tantas tomas.
-- Puedes REPETIR el mismo archivo de clip en tomas distintas si la imagen sirve. Usa entre 4 y 6 archivos distintos en total, repartidos en las 7 u 8 tomas.
+- Cada toma usa un archivo de clip DISTINTO. No repitas el mismo archivo dos veces.
 - buscar: en INGLES, generico y visual
 - etiquetas: maximo 1 por toma, maximo 3 palabras, y solo en 2 o 3 tomas (no en todas)
 - clip: nombre en espanol con guiones .mp4
