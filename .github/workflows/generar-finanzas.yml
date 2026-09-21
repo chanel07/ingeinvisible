@@ -90,6 +90,8 @@ jobs:
 
       - name: Renderizar Short
         working-directory: video-agua
+        env:
+          REMOTION_MARCA: 'FINA|NOVA'
         run: |
           mkdir -p out
           npx remotion render Short out/finanzas-final.mp4 \
