@@ -5,6 +5,12 @@ export type Etiqueta = {texto: string; cuando?: string};
 export type Toma = {desde: string; clip: string; buscar: string; seccion?: string; etiquetas?: Etiqueta[]};
 export type VideoProps = {captions: Caption[]; plan: Toma[]};
 
+// Marca del canal. Se cambia con la variable REMOTION_MARCA en el workflow.
+// El formato es "PARTE1|PARTE2": la primera va en blanco, la segunda en color.
+const MARCA = (process.env.REMOTION_MARCA ?? 'INGENIERÍA|INVISIBLE').split('|');
+const MARCA_1 = MARCA[0] ?? '';
+const MARCA_2 = MARCA[1] ?? '';
+
 const AMARILLO = '#f5c400';
 const OSCURO = '#0a1217';
 const FUNDIDO = 12;
@@ -184,7 +190,7 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
       </div>
 
       <div style={{position: 'absolute', top: 44, left: 60, color: '#fff', fontSize: 30, fontWeight: 900, letterSpacing: 3, textShadow: '0 2px 12px rgba(0,0,0,0.8)'}}>
-        INGENIERÍA <span style={{color: AMARILLO}}>INVISIBLE</span>
+        {MARCA_1} <span style={{color: AMARILLO}}>{MARCA_2}</span>
       </div>
 
       {actual && (
