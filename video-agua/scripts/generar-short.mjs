@@ -56,10 +56,17 @@ Estructura obligatoria:
 2. La explicacion (2 o 3 frases cortas)
 3. El cierre que cierra el circulo (1 frase)
 
+CONTEXTO GEOGRAFICO: el publico es de Latinoamerica, NO de Espana.
+- La red electrica domestica es de 110 o 120 voltios. Los 220 se usan solo para aires acondicionados, estufas y secadoras. NUNCA asumas que un enchufe normal es de 220.
+- Los enchufes son de patas planas, no redondos.
+- Sistema metrico siempre: metros, litros, kilos, grados centigrados. Nunca pies, galones, libras ni Fahrenheit.
+- Espanol neutro latinoamericano. Usa "carro" y no "coche", "celular" y no "movil", "computador" y no "ordenador", "jugo" y no "zumo", "tu" y nunca "vosotros". Evita el verbo "coger".
+- Si mencionas precios o costos, usa dolares, no euros.
+
 Responde SOLO con JSON, sin backticks:
 
 {
-  "guion": "50-70 palabras EXACTAS. Primera frase = el gancho. Luego 2-3 frases de explicacion. Ultima frase = cierra el circulo con la primera. NO digas suscribete. Espanol neutro, frases muy cortas.",
+  "guion": "50-70 palabras EXACTAS. Primera frase = el gancho. Luego 2-3 frases de explicacion. Ultima frase = cierra el circulo con la primera. NO digas suscribete. Espanol neutro latinoamericano, frases muy cortas.",
   "plan": [
     {"desde":"","clip":"nombre.mp4","buscar":"english Pexels query","etiquetas":[{"texto":"TEXTO CORTO"}]}
   ]
@@ -70,7 +77,7 @@ REGLAS DEL PLAN (el ritmo importa tanto como el guion):
 - Cada toma dura 2 o 3 segundos solamente. Son cortes rapidos.
 - En un Short, un plano quieto de 6 segundos hace que la gente se salga. Por eso son tantas tomas.
 - Cada toma usa un archivo de clip DISTINTO. No repitas el mismo archivo dos veces.
-- buscar: en INGLES, generico y visual
+- buscar: en INGLES, generico y visual. Prefiere busquedas que Pexels SI tenga (maquinaria, cables, ciudad, manos, aparatos) en vez de terminos tecnicos raros.
 - etiquetas: maximo 1 por toma, maximo 3 palabras, y solo en 2 o 3 tomas (no en todas)
 - clip: nombre en espanol con guiones .mp4
 
@@ -139,6 +146,12 @@ if (palabras > 85) console.warn('AVISO: el guion salio largo, el Short va a pasa
 const tomas = resultado.plan.length;
 console.log(`TOMAS: ${tomas} (aprox ${(segundos / tomas).toFixed(1)}s por toma)`);
 if (tomas < 6) console.warn('AVISO: salieron pocas tomas, el ritmo va a quedar lento.');
+
+// Control de repeticion: cada toma deberia traer imagen nueva.
+const clips = resultado.plan.map((t) => t.clip);
+const unicos = new Set(clips).size;
+console.log(`CLIPS DISTINTOS: ${unicos} de ${tomas}`);
+if (unicos < tomas) console.warn('AVISO: hay clips repetidos, se van a ver imagenes iguales.');
 
 // Aviso si Gemini invento fragmentos que no estan en el guion.
 const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
