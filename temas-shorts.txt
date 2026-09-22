@@ -19,7 +19,7 @@
 [x] Por qué los trenes van sobre rieles y no sobre asfalto
 [x] Qué pasa cuando se rompe un cable submarino de internet
 [x] Cómo funciona un detector de humo
-Por qué las grúas de construcción no se caen
+[x] Por qué las grúas de construcción no se caen
 Cómo llega el WiFi de tu router a tu celular
 Cuánto tarda el agua en llegar del río a tu grifo
 Por qué algunos edificios tienen forma de pirámide
