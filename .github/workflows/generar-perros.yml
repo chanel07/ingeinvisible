@@ -1,0 +1,120 @@
+name: Generar Perros
+
+on:
+  workflow_dispatch:
+    inputs:
+      tema:
+        description: 'Tema del Reel (dejar vacío para tomar de la lista)'
+        required: false
+        type: string
+
+jobs:
+  perros:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: video-agua/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache de Remotion (Chromium)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/remotion
+          key: remotion-${{ runner.os }}-v1
+
+      - name: Instalar edge-tts
+        run: pip install edge-tts
+
+      - name: Instalar FFmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+
+      - name: Instalar dependencias de Remotion
+        working-directory: video-agua
+        run: npm ci
+
+      - name: Elegir tema
+        id: tema
+        working-directory: video-agua
+        run: |
+          if [ -n "${{ inputs.tema }}" ]; then
+            echo "TEMA=${{ inputs.tema }}" >> $GITHUB_OUTPUT
+          else
+            TEMA=$(node scripts/siguiente-tema.mjs ../temas-perros.txt)
+            echo "TEMA=$TEMA" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generar guion y plan con Gemini
+        working-directory: video-agua
+        env:
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+          TEMA: ${{ steps.tema.outputs.TEMA }}
+        run: node scripts/generar-perros.mjs
+
+      - name: Limpiar guion y generar voz
+        working-directory: video-agua
+        run: |
+          sed -i 's/#//g; s/\*//g; s/_//g; s/\[//g; s/\]//g; s/---//g' public/guion.txt
+          edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt
+
+      - name: Descargar clips de Pexels
+        working-directory: video-agua
+        env:
+          PEXELS_KEY: ${{ secrets.PEXELS_KEY }}
+        run: rm -rf public/clips && node scripts/descargar-clips.mjs
+
+      - name: Preparar clips
+        working-directory: video-agua
+        run: |
+          mkdir -p public/clips-mini
+          for f in public/clips/*.mp4; do
+            n=$(basename "$f")
+            ffmpeg -y -loglevel error -i "$f" -t 15 -vf "scale=1080:-2" -c:v libx264 -crf 22 -preset veryfast -an "public/clips-mini/$n"
+          done
+          rm -rf public/clips
+          mv public/clips-mini public/clips
+
+      - name: Renderizar Reel
+        working-directory: video-agua
+        env:
+          REMOTION_MARCA: 'HUELLA|VIVA'
+        run: |
+          mkdir -p out
+          npx remotion render Short out/perros-final.mp4 \
+            --concurrency=2 \
+            --jpeg-quality=95 \
+            --crf=20
+
+      - name: Medir resultado
+        working-directory: video-agua
+        run: |
+          MB=$(du -m out/perros-final.mp4 | cut -f1)
+          echo "PESO: ${MB} MB"
+          ffprobe -v error -show_entries format=duration,bit_rate -of default=noprint_wrappers=1 out/perros-final.mp4
+
+      - name: Subir Reel al repositorio
+        run: |
+          cd video-agua
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -f out/perros-final.mp4
+          git commit -m "Perros: ${{ steps.tema.outputs.TEMA }}"
+          git push
+          cd ..
+          git add temas-perros.txt
+          git commit -m "Marcar tema usado" || true
+          git push || true
