@@ -1,4 +1,4 @@
-import {AbsoluteFill, Audio, OffthreadVideo, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 
 export type Caption = {start: number; end: number; text: string};
 export type Etiqueta = {texto: string; cuando?: string};
@@ -83,6 +83,14 @@ const TomaVideo = ({toma, indice, inicio, fin, captions}: {toma: Toma; indice: n
   return (
     <AbsoluteFill style={{opacity: opacidad, overflow: 'hidden'}}>
       <AbsoluteFill style={{transform: `scale(${zoom}) translateX(${mover}px)`}}>
+        {/* Imagen de respaldo debajo del primer clip: el video tarda casi un
+            segundo en decodificar y mientras tanto se veia negro. */}
+        {indice === 0 && (
+          <Img
+            src={staticFile('portada.jpg')}
+            style={{position: 'absolute', width: '100%', height: '100%', objectFit: 'cover'}}
+          />
+        )}
         <OffthreadVideo src={staticFile(`clips/${toma.clip}`)} muted style={{width: '100%', height: '100%', objectFit: 'cover'}} />
       </AbsoluteFill>
       {(toma.etiquetas ?? []).map((e, k) => {
