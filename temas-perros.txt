@@ -4,7 +4,7 @@
 [x] Por qué tu perro te sigue al baño
 [x] Cuánto tiempo te recuerda tu perro cuando no estás
 [x] Por qué los perros inclinan la cabeza cuando les hablas
-Qué pasa en el cerebro de tu perro cuando dice tu nombre
+[x] Qué pasa en el cerebro de tu perro cuando dice tu nombre
 Por qué tu perro huele a otros perros en la cola
 Cuántas palabras entiende de verdad tu perro
 Por qué tu perro bosteza cuando tú bostezas
