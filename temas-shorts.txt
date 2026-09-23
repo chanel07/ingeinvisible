@@ -26,7 +26,7 @@
 [x] Cómo funciona un sistema de riego automático
 [x] Qué pasa si un avión pierde los dos motores
 [x] Por qué el acero se oxida pero el aluminio no
-Cómo funciona un freno de disco
+[x] Cómo funciona un freno de disco
 Por qué los rascacielos se balancean con el viento
 Cuántos kilómetros de cable tiene tu casa
 Cómo funciona un generador eléctrico
