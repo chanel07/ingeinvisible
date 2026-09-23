@@ -74,7 +74,9 @@ const TomaVideo = ({toma, indice, inicio, fin, captions}: {toma: Toma; indice: n
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const dur = Math.max(1, (fin - inicio) * fps + FUNDIDO);
-  const opacidad = interpolate(frame, [0, FUNDIDO], [0, 1], fijo);
+  // La PRIMERA toma entra sin fundido: si no, el fotograma cero sale negro
+  // y ese es el que Facebook y YouTube usan como portada del video.
+  const opacidad = indice === 0 ? 1 : interpolate(frame, [0, FUNDIDO], [0, 1], fijo);
   const zoom = interpolate(frame, [0, dur], indice % 2 === 0 ? [1.05, 1.18] : [1.18, 1.05], fijo);
   const mover = interpolate(frame, [0, dur], indice % 2 === 0 ? [-25, 25] : [25, -25], fijo);
 
