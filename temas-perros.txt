@@ -9,7 +9,7 @@
 [x] Cuántas palabras entiende de verdad tu perro
 [x] Por qué tu perro bosteza cuando tú bostezas
 [x] Qué significa cuando tu perro te da la pata sin pedirlo
-Por qué los perros duermen tanto
+[x] Por qué los perros duermen tanto
 Qué ve tu perro cuando se mira al espejo
 Por qué tu perro esconde la comida
 Cuánto huele un perro comparado con una persona
