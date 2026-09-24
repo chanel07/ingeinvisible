@@ -28,7 +28,7 @@
 [x] Por qué el acero se oxida pero el aluminio no
 [x] Cómo funciona un freno de disco
 [x] Por qué los rascacielos se balancean con el viento
-Cuántos kilómetros de cable tiene tu casa
+[x] Cuántos kilómetros de cable tiene tu casa
 Cómo funciona un generador eléctrico
 Por qué las autopistas tienen curvas peraltadas
 Qué pasa dentro de una batería cuando se carga
