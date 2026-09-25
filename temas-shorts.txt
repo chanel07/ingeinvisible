@@ -31,7 +31,7 @@
 [x] Cuántos kilómetros de cable tiene tu casa
 [x] Cómo funciona un generador eléctrico
 [x] Por qué las autopistas tienen curvas peraltadas
-Qué pasa dentro de una batería cuando se carga
+[x] Qué pasa dentro de una batería cuando se carga
 Cómo se mide la resistencia de un edificio ante un terremoto
 Por qué el hielo flota en el agua
 Cómo funciona una cerradura
