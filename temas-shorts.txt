@@ -33,7 +33,7 @@
 [x] Por qué las autopistas tienen curvas peraltadas
 [x] Qué pasa dentro de una batería cuando se carga
 [x] Cómo se mide la resistencia de un edificio ante un terremoto
-Por qué el hielo flota en el agua
+[x] Por qué el hielo flota en el agua
 Cómo funciona una cerradura
 Por qué los aviones vuelan a diez mil metros de altura
 Cuánta presión soporta una tubería de agua
