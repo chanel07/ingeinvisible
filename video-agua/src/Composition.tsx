@@ -11,6 +11,11 @@ const MARCA = (process.env.REMOTION_MARCA ?? 'INGENIERÍA|INVISIBLE').split('|')
 const MARCA_1 = MARCA[0] ?? '';
 const MARCA_2 = MARCA[1] ?? '';
 
+// Texto final para invitar a seguir el canal. Se cambia con REMOTION_CIERRE.
+// Formato "LINEA1|LINEA2": la primera en blanco, la segunda en amarillo.
+// Si el workflow pone otra marca y no define cierre, no se muestra nada.
+const CIERRE = process.env.REMOTION_CIERRE ?? (process.env.REMOTION_MARCA ? '' : 'Sígueme|Cada día algo que usas sin saber cómo funciona');
+
 const AMARILLO = '#f5c400';
 const OSCURO = '#0a1217';
 const FUNDIDO = 12;
@@ -119,6 +124,22 @@ const TarjetaSeccion = ({numero, titulo}: {numero: number; titulo: string}) => {
   );
 };
 
+// Tarjeta final que invita a seguir el canal
+const CierreCanal = () => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const entra = spring({frame, fps, config: {damping: 14, stiffness: 140}});
+  const [linea1, linea2] = CIERRE.split('|');
+  return (
+    <div style={{position: 'absolute', top: '13%', left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 8%', opacity: Math.min(1, entra), transform: `translateY(${(1 - entra) * -60}px) scale(${0.9 + 0.1 * entra})`}}>
+      <div style={{background: 'rgba(10,18,23,0.88)', border: `4px solid ${AMARILLO}`, borderRadius: 24, padding: '26px 40px', textAlign: 'center', boxShadow: '0 12px 40px rgba(0,0,0,0.6)'}}>
+        <div style={{color: '#fff', fontSize: 56, fontWeight: 900, lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: 2}}>{linea1}</div>
+        {linea2 && <div style={{color: AMARILLO, fontSize: 46, fontWeight: 800, lineHeight: 1.25, marginTop: 8}}>{linea2}</div>}
+      </div>
+    </div>
+  );
+};
+
 export const MyComposition = ({captions, plan}: VideoProps) => {
   const frame = useCurrentFrame();
   const {fps, durationInFrames} = useVideoConfig();
@@ -167,6 +188,8 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
   const actual = captions.find((c) => t >= c.start && t < c.end);
   const pop = actual ? spring({frame: frame - Math.round(actual.start * fps), fps, config: {damping: 15, stiffness: 200}}) : 1;
 
+  const inicioCierre = durationInFrames - Math.round(2.5 * fps);
+
   return (
     <AbsoluteFill style={{backgroundColor: OSCURO, fontFamily: 'Arial, sans-serif'}}>
       <Audio src={staticFile('voz.mp3')} />
@@ -209,6 +232,12 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
             {actual.text}
           </div>
         </div>
+      )}
+
+      {CIERRE && inicioCierre > 4 * fps && (
+        <Sequence from={inicioCierre}>
+          <CierreCanal />
+        </Sequence>
       )}
     </AbsoluteFill>
   );
