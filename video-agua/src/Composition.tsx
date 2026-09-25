@@ -14,7 +14,7 @@ const MARCA_2 = MARCA[1] ?? '';
 // Texto final para invitar a seguir el canal. Se cambia con REMOTION_CIERRE.
 // Formato "LINEA1|LINEA2": la primera en blanco, la segunda en amarillo.
 // Si el workflow pone otra marca y no define cierre, no se muestra nada.
-const CIERRE = process.env.REMOTION_CIERRE ?? (process.env.REMOTION_MARCA ? '' : 'Sígueme|Cada día algo que usas sin saber cómo funciona');
+const CIERRE = process.env.REMOTION_CIERRE ?? (process.env.REMOTION_MARCA ? '' : 'Suscríbete|Cada día algo que usas sin saber cómo funciona');
 
 const AMARILLO = '#f5c400';
 const OSCURO = '#0a1217';
