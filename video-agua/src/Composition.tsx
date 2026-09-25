@@ -11,12 +11,13 @@ const MARCA = (process.env.REMOTION_MARCA ?? 'INGENIERÍA|INVISIBLE').split('|')
 const MARCA_1 = MARCA[0] ?? '';
 const MARCA_2 = MARCA[1] ?? '';
 
-// Texto final para invitar a seguir el canal. Se cambia con REMOTION_CIERRE.
-// Formato "LINEA1|LINEA2": la primera en blanco, la segunda en amarillo.
+// Boton final para invitar a suscribirse. Se cambia con REMOTION_CIERRE.
+// Formato "BOTON|TEXTO DEBAJO" (el texto de debajo es opcional).
 // Si el workflow pone otra marca y no define cierre, no se muestra nada.
-const CIERRE = process.env.REMOTION_CIERRE ?? (process.env.REMOTION_MARCA ? '' : 'Suscríbete|Cada día algo que usas sin saber cómo funciona');
+const CIERRE = process.env.REMOTION_CIERRE ?? (process.env.REMOTION_MARCA ? '' : 'Suscríbete');
 
 const AMARILLO = '#f5c400';
+const ROJO = '#ff0000';
 const OSCURO = '#0a1217';
 const FUNDIDO = 12;
 const fijo = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
@@ -124,18 +125,21 @@ const TarjetaSeccion = ({numero, titulo}: {numero: number; titulo: string}) => {
   );
 };
 
-// Tarjeta final que invita a seguir el canal
+// Boton rojo final estilo "suscribirse"
 const CierreCanal = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-  const entra = spring({frame, fps, config: {damping: 14, stiffness: 140}});
+  const entra = spring({frame, fps, config: {damping: 12, stiffness: 160}});
+  const pulso = 1 + Math.max(0, Math.sin((frame - 10) / 5)) * 0.05;
   const [linea1, linea2] = CIERRE.split('|');
   return (
-    <div style={{position: 'absolute', top: '13%', left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 8%', opacity: Math.min(1, entra), transform: `translateY(${(1 - entra) * -60}px) scale(${0.9 + 0.1 * entra})`}}>
-      <div style={{background: 'rgba(10,18,23,0.88)', border: `4px solid ${AMARILLO}`, borderRadius: 24, padding: '26px 40px', textAlign: 'center', boxShadow: '0 12px 40px rgba(0,0,0,0.6)'}}>
-        <div style={{color: '#fff', fontSize: 56, fontWeight: 900, lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: 2}}>{linea1}</div>
-        {linea2 && <div style={{color: AMARILLO, fontSize: 46, fontWeight: 800, lineHeight: 1.25, marginTop: 8}}>{linea2}</div>}
+    <div style={{position: 'absolute', bottom: '40%', left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: Math.min(1, entra), transform: `scale(${(0.6 + 0.4 * entra) * pulso})`}}>
+      <div style={{background: ROJO, color: '#fff', fontSize: 52, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', padding: '18px 48px', borderRadius: 14, boxShadow: '0 10px 30px rgba(0,0,0,0.55)'}}>
+        {linea1}
       </div>
+      {linea2 && (
+        <div style={{marginTop: 14, color: '#fff', fontSize: 36, fontWeight: 800, textShadow: '0 2px 12px rgba(0,0,0,0.9)'}}>{linea2}</div>
+      )}
     </div>
   );
 };
