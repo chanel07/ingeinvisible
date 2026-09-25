@@ -32,7 +32,7 @@
 [x] Cómo funciona un generador eléctrico
 [x] Por qué las autopistas tienen curvas peraltadas
 [x] Qué pasa dentro de una batería cuando se carga
-Cómo se mide la resistencia de un edificio ante un terremoto
+[x] Cómo se mide la resistencia de un edificio ante un terremoto
 Por qué el hielo flota en el agua
 Cómo funciona una cerradura
 Por qué los aviones vuelan a diez mil metros de altura
