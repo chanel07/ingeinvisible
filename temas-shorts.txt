@@ -34,7 +34,7 @@
 [x] Qué pasa dentro de una batería cuando se carga
 [x] Cómo se mide la resistencia de un edificio ante un terremoto
 [x] Por qué el hielo flota en el agua
-Cómo funciona una cerradura
+[x] Cómo funciona una cerradura
 Por qué los aviones vuelan a diez mil metros de altura
 Cuánta presión soporta una tubería de agua
 Cómo se hace un tornillo
