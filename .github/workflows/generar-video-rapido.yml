@@ -90,6 +90,14 @@ jobs:
           rm -rf public/clips
           mv public/clips-mini public/clips
 
+      - name: Sacar fotograma de respaldo
+        working-directory: video-agua
+        run: |
+          PRIMERO=$(node -e "const p=require('./public/plan.json');console.log((p.plan||p)[0].clip)" 2>/dev/null || ls public/clips | head -n1)
+          ffmpeg -y -loglevel error -ss 0.4 -i "public/clips/$PRIMERO" -frames:v 1 public/portada.jpg
+          ls -la public/portada.jpg
+          echo "Fotograma de respaldo sacado de $PRIMERO"
+
       - name: Renderizar video
         working-directory: video-agua
         run: |
