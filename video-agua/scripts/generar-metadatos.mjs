@@ -22,7 +22,7 @@ const maxTitulo = TIPO === 'short' ? 50 : 70;
 
 const prompt = `Eres el editor del canal de YouTube "Ingeniería Invisible", que explica en español cómo funcionan, y cuándo son peligrosas, las cosas que la gente usa todos los días. El público es de todos los países hispanohablantes.
 
-Te paso el tema y el guion de un ${TIPO === 'short' ? 'Short vertical de 20 a 30 segundos' : 'video largo horizontal'}. Escribe el título, la descripción y los hashtags para publicarlo.
+Te paso el tema y el guion de un ${TIPO === 'short' ? 'Short vertical de 20 a 30 segundos' : 'video largo horizontal'}. Escribe el título, la descripción, los hashtags y las etiquetas para publicarlo.
 
 TEMA: ${temaCorto}
 
@@ -47,8 +47,13 @@ REGLAS DE LOS HASHTAGS:
 - Entre 3 y 5, en minúscula, sin espacios, con tilde si la palabra la lleva.
 - Primero los más específicos del tema, después #cómofunciona${TIPO === 'short' ? ' y al final #shorts' : ''}.
 
+REGLAS DE LAS ETIQUETAS:
+- Entre 8 y 12 etiquetas, en minúscula, sin el símbolo #.
+- Incluye: el objeto o tema principal, la pregunta como la escribiría alguien en el buscador, sinónimos que se usan en otros países (por ejemplo elevador y ascensor, lapicero y bolígrafo), la palabra técnica si existe, y al final: cómo funciona, ingeniería, ingeniería invisible.
+- Ninguna etiqueta puede tener comas por dentro.
+
 Responde SOLO con este JSON:
-{"titulo": "...", "descripcion": "...", "hashtags": ["#...", "#..."]}`;
+{"titulo": "...", "descripcion": "...", "hashtags": ["#...", "#..."], "etiquetas": ["...", "..."]}`;
 
 const MODELOS = ['gemini-3.6-flash', 'gemini-2.5-flash'];
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -107,7 +112,21 @@ const hashtags = meta.hashtags
   .slice(0, 5)
   .join(' ');
 
-const salida = `TITULO:\n${titulo}\n\nDESCRIPCION:\n${String(meta.descripcion).trim()}\n\n${hashtags}\n`;
+// Etiquetas: sin comas internas, sin repetidas y dentro del límite de 500 caracteres de YouTube
+const vistas = new Set();
+const etiquetasLista = [];
+let largoTotal = 0;
+for (const e of Array.isArray(meta.etiquetas) ? meta.etiquetas : []) {
+  const limpia = String(e).replace(/[#,]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!limpia || vistas.has(limpia)) continue;
+  if (largoTotal + limpia.length + 2 > 480) break;
+  vistas.add(limpia);
+  etiquetasLista.push(limpia);
+  largoTotal += limpia.length + 2;
+}
+const etiquetas = etiquetasLista.join(', ');
+
+const salida = `TITULO:\n${titulo}\n\nDESCRIPCION:\n${String(meta.descripcion).trim()}\n\n${hashtags}\n\nETIQUETAS:\n${etiquetas}\n`;
 
 await fs.mkdir('out', {recursive: true});
 await fs.writeFile('out/metadatos.txt', salida);
