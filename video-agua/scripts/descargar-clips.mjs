@@ -8,17 +8,21 @@ if (!KEY) {
   process.exit(1);
 }
 
+// Busquedas que traen plantillas de YouTube en ingles ("subscribe", "thank you for watching"...)
+const PROHIBIDAS = /subscri|thank|watching|outro|end ?screen|youtube|like button|follow us|channel|bell icon|social media/i;
+
 const plan = JSON.parse(await fs.readFile('public/plan.json', 'utf8'));
 const tomas = Array.isArray(plan) ? plan : plan.plan;
 await fs.mkdir('public/clips', {recursive: true});
 await fs.mkdir('public/fotos-tmp', {recursive: true});
 
-const usados = new Set(); // ids de Pexels ya usados, para no repetir
+const usados = new Set();
 const hechos = new Set();
 const listos = [];
 const pendientes = [];
 let nVideos = 0;
 let nFotos = 0;
+let ultimaBuena = '';
 
 const pedir = async (url) => {
   const res = await fetch(url, {headers: {Authorization: KEY}});
@@ -59,7 +63,6 @@ const descargar = async (link, destino) => {
   await fs.writeFile(destino, Buffer.from(await bin.arrayBuffer()));
 };
 
-// Convierte una foto en un clip de 12 segundos para que Remotion la trate como video
 const fotoAVideo = (jpg, mp4) => {
   execFileSync('ffmpeg', [
     '-y', '-loglevel', 'error',
@@ -75,14 +78,22 @@ for (const toma of tomas) {
   if (hechos.has(toma.clip)) continue;
   hechos.add(toma.clip);
   const destino = path.join('public/clips', toma.clip);
-  const corta = toma.buscar.split(' ').slice(0, 2).join(' ');
 
-  // Orden: video exacto, foto exacta, video con búsqueda corta, foto con búsqueda corta
+  let buscar = String(toma.buscar ?? '').trim();
+  if (!buscar || PROHIBIDAS.test(buscar)) {
+    const reemplazo = ultimaBuena || tomas.map((t) => String(t.buscar ?? '')).find((b) => b && !PROHIBIDAS.test(b)) || 'ocean waves';
+    console.log(`⚠ ${toma.clip}: la búsqueda "${buscar}" trae plantillas, uso "${reemplazo}"`);
+    buscar = reemplazo;
+  } else {
+    ultimaBuena = buscar;
+  }
+  const corta = buscar.split(' ').slice(0, 2).join(' ');
+
   const intentos = [
-    () => buscarVideo(toma.buscar),
-    () => buscarFoto(toma.buscar),
-    () => (corta !== toma.buscar ? buscarVideo(corta) : null),
-    () => (corta !== toma.buscar ? buscarFoto(corta) : null),
+    () => buscarVideo(buscar),
+    () => buscarFoto(buscar),
+    () => (corta !== buscar ? buscarVideo(corta) : null),
+    () => (corta !== buscar ? buscarFoto(corta) : null),
   ];
 
   let elegido = null;
@@ -108,17 +119,16 @@ for (const toma of tomas) {
       }
       usados.add(elegido.id);
       listos.push(destino);
-      console.log(`✓ ${toma.clip} ← "${toma.buscar}" (${elegido.info})`);
+      console.log(`✓ ${toma.clip} ← "${buscar}" (${elegido.info})`);
       continue;
     } catch (e) {
       console.error(`  fallo guardando ${toma.clip}: ${e.message}`);
     }
   }
 
-  pendientes.push({clip: toma.clip, destino, buscar: toma.buscar});
+  pendientes.push({clip: toma.clip, destino, buscar});
 }
 
-// Último recurso: si una toma no consiguió nada, copia otro clip para que el render no falle
 if (pendientes.length && !listos.length) {
   console.error('✗ No se consiguió ningún clip ni foto. Revisa la clave de Pexels o las búsquedas.');
   process.exit(1);
