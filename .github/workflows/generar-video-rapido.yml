@@ -73,6 +73,15 @@ jobs:
           sed -i 's/#//g; s/\*//g; s/_//g; s/\[//g; s/\]//g; s/---//g' public/guion.txt
           edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt
 
+      - name: Título y descripción para YouTube
+        working-directory: video-agua
+        continue-on-error: true
+        env:
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+          TEMA: ${{ steps.tema.outputs.TEMA }}
+          TIPO: largo
+        run: node scripts/generar-metadatos.mjs
+
       - name: Descargar clips de Pexels
         working-directory: video-agua
         env:
@@ -118,7 +127,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: video-${{ github.run_number }}
-          path: video-agua/out/video-final.mp4
+          path: |
+            video-agua/out/video-final.mp4
+            video-agua/out/metadatos.txt
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Marcar tema usado
