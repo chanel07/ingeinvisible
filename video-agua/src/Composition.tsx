@@ -2,7 +2,7 @@ import {AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, interpolate, spring,
 
 export type Caption = {start: number; end: number; text: string};
 export type Etiqueta = {texto: string; cuando?: string};
-export type Toma = {desde: string; clip: string; buscar: string; seccion?: string; etiquetas?: Etiqueta[]};
+export type Toma = {desde: string; clip: string; buscar: string; seccion?: string; etiquetas?: unknown};
 export type VideoProps = {captions: Caption[]; plan: Toma[]};
 
 // Marca del canal. Se cambia con la variable REMOTION_MARCA en el workflow.
@@ -26,6 +26,19 @@ const norm = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 const dosDigitos = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+
+// Gemini a veces manda las etiquetas como texto suelto o en otro formato.
+// Esto las convierte siempre en una lista valida, o en lista vacia.
+const listaEtiquetas = (et: unknown): Etiqueta[] => {
+  if (Array.isArray(et)) {
+    return et
+      .map((e) => (typeof e === 'string' ? {texto: e} : e))
+      .filter((e): e is Etiqueta => !!e && typeof e === 'object' && typeof (e as Etiqueta).texto === 'string' && (e as Etiqueta).texto.trim() !== '');
+  }
+  if (typeof et === 'string' && et.trim()) return [{texto: et.trim()}];
+  if (et && typeof et === 'object' && typeof (et as Etiqueta).texto === 'string') return [et as Etiqueta];
+  return [];
+};
 
 const buscarInicio = (captions: Caption[], frase: string | undefined, desde: number) => {
   if (!frase) return null;
@@ -99,7 +112,7 @@ const TomaVideo = ({toma, indice, inicio, fin, captions}: {toma: Toma; indice: n
         )}
         <OffthreadVideo src={staticFile(`clips/${toma.clip}`)} muted style={{width: '100%', height: '100%', objectFit: 'cover'}} />
       </AbsoluteFill>
-      {(toma.etiquetas ?? []).map((e, k) => {
+      {listaEtiquetas(toma.etiquetas).map((e, k) => {
         const s = buscarInicio(captions, e.cuando, inicio);
         const seg = Math.max(0, (s ?? inicio + 1) - inicio);
         return <EtiquetaBox key={k} texto={e.texto} desdeFrame={Math.round(seg * fps)} posicion={k} />;
