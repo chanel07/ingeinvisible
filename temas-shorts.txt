@@ -37,7 +37,7 @@
 [x] Cómo funciona una cerradura
 [x] Por qué los aviones vuelan a diez mil metros de altura
 [x] Cuánta presión soporta una tubería de agua
-Cómo se hace un tornillo
+[x] Cómo se hace un tornillo
 Por qué las ventanas de los aviones son redondas
 Cómo funciona un giroscopio
 Qué pasa si un ascensor cae en caída libre
