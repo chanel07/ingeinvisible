@@ -7,6 +7,14 @@ on:
         description: 'Tema del Reel (dejar vacío para tomar de la lista)'
         required: false
         type: string
+      duracion:
+        description: 'Duración del Reel'
+        required: false
+        type: choice
+        default: largo
+        options:
+          - largo
+          - corto
 
 jobs:
   perros:
@@ -50,19 +58,23 @@ jobs:
       - name: Elegir tema
         id: tema
         working-directory: video-agua
+        env:
+          TEMA_MANUAL: ${{ inputs.tema }}
         run: |
-          if [ -n "${{ inputs.tema }}" ]; then
-            echo "TEMA=${{ inputs.tema }}" >> $GITHUB_OUTPUT
+          if [ -n "$TEMA_MANUAL" ]; then
+            TEMA="$TEMA_MANUAL"
           else
             TEMA=$(node scripts/siguiente-tema.mjs ../temas-perros.txt)
-            echo "TEMA=$TEMA" >> $GITHUB_OUTPUT
           fi
+          TEMA=$(echo "$TEMA" | tr '\n' ' ')
+          echo "TEMA=$TEMA" >> $GITHUB_OUTPUT
 
       - name: Generar guion y plan con Gemini
         working-directory: video-agua
         env:
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
           TEMA: ${{ steps.tema.outputs.TEMA }}
+          DURACION: ${{ inputs.duracion }}
         run: node scripts/generar-perros.mjs
 
       - name: Limpiar guion y generar voz
@@ -119,7 +131,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add -f out/perros-final.mp4
-          git commit -m "Perros: ${{ steps.tema.outputs.TEMA }}"
+          git commit -m "Perros (${{ inputs.duracion }})"
           git push
           cd ..
           git add temas-perros.txt
