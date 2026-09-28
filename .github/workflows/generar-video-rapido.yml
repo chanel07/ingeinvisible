@@ -70,9 +70,13 @@ jobs:
       - name: Limpiar guion y generar voz
         working-directory: video-agua
         run: |
-          sed -i -E '/^[[:space:]]*[(\[]?(clip|toma|escena|visual|imagen|b-roll)[[:space:]]*:/Id' public/guion.txt
-          sed -i -E 's/\((clip|toma|escena|visual|imagen)[[:space:]]*:[^)]*\)//Ig; s/\[(clip|toma|escena|visual|imagen)[[:space:]]*:[^]]*\]//Ig' public/guion.txt
+          PAL='clip|toma|escena|visual|imagen|b-roll|seccion|sección|SECCIÓN|section|parte|capitulo|capítulo|CAPÍTULO|titulo|título|TÍTULO|nota'
+          sed -i -E "/^[[:space:]]*[(\[]?[0-9]*[.)]?[[:space:]]*($PAL)[[:space:]]*[0-9]*[[:space:]]*:/Id" public/guion.txt
+          sed -i -E "s/\(($PAL)[[:space:]]*[0-9]*[[:space:]]*:[^)]*\)//Ig; s/\[($PAL)[[:space:]]*[0-9]*[[:space:]]*:[^]]*\]//Ig" public/guion.txt
           sed -i 's/#//g; s/\*//g; s/_//g; s/\[//g; s/\]//g; s/---//g' public/guion.txt
+          echo "----- GUION QUE SE VA A NARRAR -----"
+          cat public/guion.txt
+          echo "------------------------------------"
           edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt
 
       - name: Título y descripción para YouTube
