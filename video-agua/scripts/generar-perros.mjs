@@ -8,6 +8,21 @@ if (!KEY || !TEMA) {
   process.exit(1);
 }
 
+// Primera toma: siempre un perro tierno, elegido al azar para que cada
+// video arranque distinto. De aqui sale tambien la portada del video.
+const PRIMERAS = [
+  'happy puppy playing',
+  'cute puppy sitting grass',
+  'puppy running towards camera',
+  'happy dog wagging tail',
+  'golden retriever puppy happy',
+  'small dog playing with toy',
+  'puppy tilting head',
+  'happy dog running beach',
+  'cute dog lying on sofa',
+  'puppy playing with owner',
+];
+
 const prompt = `Eres el guionista de una pagina de rescate de mascotas en Santa Marta, Colombia. Creas Reels verticales de 35 a 45 segundos sobre perros.
 
 TEMA: ${TEMA}
@@ -88,12 +103,13 @@ Responde SOLO con JSON, sin backticks:
 REGLAS DEL PLAN:
 - plan: entre 14 y 16 tomas. NO menos de 14.
 - Cada toma dura 2 o 3 segundos. Cortes rapidos, nunca una toma larga.
-- La PRIMERA toma SIEMPRE es un perro de cerca mirando a camara. buscar: "dog looking at camera close up" o parecido.
 - Cada toma usa un archivo de clip DISTINTO y una busqueda DISTINTA. No repitas.
-- buscar: en INGLES, generico y visual, siempre con perros. Ejemplos: "dog looking at camera", "dog running park", "puppy sleeping", "dog owner petting", "dog waiting door", "dog eating bowl", "dog tilting head", "dog sniffing grass", "dog street", "dog barking", "sad dog window".
-- Alterna planos: cerca, lejos, perro solo, perro con persona. Que no se vean todas iguales.
+- buscar: en INGLES, generico y visual, siempre con perros. Planos medios o completos donde se vea el perro entero o medio cuerpo.
+- PROHIBIDO usar "close up", "closeup", "macro" o "extreme" en las busquedas. Al recortar a vertical quedan ojos o narices gigantes que se ven feos.
+- Ejemplos de busquedas buenas: "dog running park", "puppy sleeping", "dog owner petting", "dog waiting door", "dog eating bowl", "dog tilting head", "dog sniffing grass", "dog walking street", "dog barking", "sad dog window", "scared dog hiding".
+- Alterna: perro solo, perro con persona, interior, exterior. Que no se vean todas iguales.
 - etiquetas: maximo 1 por toma, maximo 3 palabras, en 4 o 5 tomas. Pon etiqueta en la toma de la revelacion.
-- clip: nombre en espanol con guiones .mp4
+- clip: nombre en espanol con guiones .mp4, SIN tildes y SIN la letra ñ (usa n).
 
 REGLA CRITICA DEL CAMPO "desde":
 - La primera toma lleva desde: ""
@@ -147,9 +163,36 @@ try { resultado = JSON.parse(limpio); } catch (e) {
   process.exit(1);
 }
 
-if (!resultado.guion || !resultado.plan) { console.error('Falta guion o plan'); process.exit(1); }
+if (!resultado.guion || !resultado.plan || !resultado.plan.length) { console.error('Falta guion o plan'); process.exit(1); }
 
 const quitarTildes = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+// Nombres de clip seguros: sin tildes, sin ñ, sin espacios raros.
+const nombreSeguro = (s, i) => {
+  const base = quitarTildes(String(s || `toma-${i + 1}`)).replace(/\.mp4$/, '').replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  return `${base || `toma-${i + 1}`}.mp4`;
+};
+const usados = new Set();
+resultado.plan.forEach((t, i) => {
+  let n = nombreSeguro(t.clip, i);
+  if (usados.has(n)) n = n.replace(/\.mp4$/, `-${i + 1}.mp4`);
+  usados.add(n);
+  t.clip = n;
+});
+
+// Primera toma: perro tierno al azar, nunca la decide Gemini.
+const primera = PRIMERAS[Math.floor(Math.random() * PRIMERAS.length)];
+resultado.plan[0].buscar = primera;
+resultado.plan[0].clip = 'perro-inicio.mp4';
+console.log(`PRIMERA TOMA: "${primera}"`);
+
+// Quitar "close up" si Gemini lo puso igual.
+resultado.plan.forEach((t, i) => {
+  const b = String(t.buscar || '');
+  const limpia = b.replace(/\b(extreme\s+)?close[\s-]?up\b|\bcloseup\b|\bmacro\b/gi, '').replace(/\s+/g, ' ').trim();
+  if (limpia !== b) console.log(`Toma ${i + 1}: quite "close up" de "${b}"`);
+  t.buscar = limpia || 'dog playing';
+});
 
 // Duracion
 const palabras = resultado.guion.trim().split(/\s+/).length;
