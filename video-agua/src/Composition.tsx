@@ -40,34 +40,46 @@ const listaEtiquetas = (et: unknown): Etiqueta[] => {
   return [];
 };
 
+// Une todos los subtitulos en un solo texto y le pone a cada letra su
+// instante aproximado. Asi se puede ubicar un fragmento aunque los
+// subtitulos vengan por frase completa y no por palabra.
+type Indice = {texto: string; tiempos: number[]};
+const cacheIndice = new WeakMap<Caption[], Indice>();
+
+const armarIndice = (captions: Caption[]): Indice => {
+  const guardado = cacheIndice.get(captions);
+  if (guardado) return guardado;
+  let texto = '';
+  const tiempos: number[] = [];
+  for (const c of captions) {
+    const n = norm(c.text);
+    if (!n) continue;
+    if (texto) {
+      texto += ' ';
+      tiempos.push(c.start);
+    }
+    const dur = Math.max(0.01, c.end - c.start);
+    for (let k = 0; k < n.length; k++) {
+      texto += n[k];
+      tiempos.push(c.start + (dur * k) / n.length);
+    }
+  }
+  const indice = {texto, tiempos};
+  cacheIndice.set(captions, indice);
+  return indice;
+};
+
+// Busca el fragmento COMPLETO. Nunca pedazos de 2 palabras: eso hacia que
+// "tu perro" se enganchara con la ultima frase y amontonara las tomas.
 const buscarInicio = (captions: Caption[], frase: string | undefined, desde: number) => {
   if (!frase) return null;
   const f = norm(frase);
-  if (!f) return null;
-
-  const directo = captions.find((x) => x.start >= desde - 0.01 && norm(x.text).includes(f));
-  if (directo) return directo.start;
-
-  const posibles = captions.filter((x) => x.start >= desde - 0.01);
-  let acumulado = '';
-  const marcas: number[] = [];
-  for (const c of posibles) {
-    acumulado += (acumulado ? ' ' : '') + norm(c.text);
-    marcas.push(acumulado.length);
-  }
-
-  const ubicar = (pos: number) => {
-    const i = marcas.findIndex((fin) => fin > pos);
-    return i >= 0 ? posibles[i].start : null;
-  };
-
-  const pos = acumulado.indexOf(f);
-  if (pos >= 0) return ubicar(pos);
-
-  const palabras = f.split(' ');
-  for (let corte = palabras.length - 1; corte >= 2; corte--) {
-    const p = acumulado.indexOf(palabras.slice(0, corte).join(' '));
-    if (p >= 0) return ubicar(p);
+  if (!f || f.split(' ').length < 2) return null;
+  const {texto, tiempos} = armarIndice(captions);
+  let pos = texto.indexOf(f);
+  while (pos >= 0) {
+    if (tiempos[pos] >= desde - 0.01) return tiempos[pos];
+    pos = texto.indexOf(f, pos + 1);
   }
   return null;
 };
