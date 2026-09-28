@@ -40,7 +40,7 @@
 [x] Cómo se hace un tornillo
 [x] Por qué las ventanas de los aviones son redondas
 [x] Cómo funciona un giroscopio
-Qué pasa si un ascensor cae en caída libre
+[x] Qué pasa si un ascensor cae en caída libre
 Por qué los puentes colgantes se mueven con el viento
 Cómo funciona un transformador eléctrico
 Por qué los barcos tienen forma de V en la proa
