@@ -33,6 +33,9 @@ async function llamar(modelo, cuerpo) {
 }
 
 // ---------- PASO 1: investigacion con Google ----------
+// 2.5-flash primero: suele tener mas cupo gratis para busquedas
+const MODELOS_INVESTIGACION = ['gemini-2.5-flash', 'gemini-3.6-flash'];
+
 async function investigar() {
   const prompt = `Investiga este tema para un video corto de divulgación en español: ${TEMA_CORTO}
 
@@ -44,22 +47,30 @@ Busca información confiable y entrega NOTAS en viñetas, en español, con:
 - Cómo se llama el objeto principal en distintos países de Latinoamérica, si cambia.
 No inventes nada. Si un dato no está claro, no lo incluyas.`;
 
-  for (const modelo of MODELOS) {
-    for (let intento = 1; intento <= 2; intento++) {
+  for (const modelo of MODELOS_INVESTIGACION) {
+    for (let intento = 1; intento <= 3; intento++) {
       try {
-        console.log(`Investigando con ${modelo} (intento ${intento}/2)...`);
+        console.log(`Investigando con ${modelo} (intento ${intento}/3)...`);
         const res = await llamar(modelo, {
           contents: [{parts: [{text: prompt}]}],
           tools: [{google_search: {}}],
           generationConfig: {temperature: 0.3, maxOutputTokens: 8192},
         });
         if (res.status === 404 || res.status === 400) {
-          console.log(`  ${modelo} no acepta búsqueda (${res.status}), paso al siguiente`);
+          const msg = (await res.text()).replace(/\s+/g, ' ').slice(0, 200);
+          console.log(`  ${modelo} no acepta búsqueda (${res.status}): ${msg}`);
           break;
         }
+        if (res.status === 429) {
+          const msg = (await res.text()).replace(/\s+/g, ' ').slice(0, 200);
+          console.log(`  429 (cupo o límite de velocidad): ${msg}`);
+          console.log('  esperando 60s...');
+          await esperar(60000);
+          continue;
+        }
         if (!res.ok) {
-          console.log(`  respuesta ${res.status}, esperando 20s...`);
-          await esperar(20000);
+          console.log(`  respuesta ${res.status}, esperando 30s...`);
+          await esperar(30000);
           continue;
         }
         const notas = textoDe(await res.json());
