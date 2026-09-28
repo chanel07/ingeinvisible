@@ -46,7 +46,7 @@ Ultima frase: retoma la idea de la primera, ya con la respuesta. Corta y redonda
     segundos: '10 a 13',
     palabras: '26 y 34',
     minPalabras: 22,
-    maxPalabras: 40,
+    maxPalabras: 34,
     tomas: 'entre 5 y 6 tomas. NO menos de 5',
     minTomas: 5,
     etiquetas: 'en 1 o 2 tomas',
@@ -60,7 +60,8 @@ Si el TEMA trae muchos datos, usa SOLO el mas fuerte. No intentes decirlo todo.
 
 3. EL REMATE: una frase corta que conecte con la primera, para que cuando el video se repita en bucle se sienta continuo.
 
-NO uses bucle abierto ni "te lo digo al final": no hay tiempo para eso.`,
+NO uses bucle abierto ni "te lo digo al final": no hay tiempo para eso.
+CUENTA LAS PALABRAS antes de responder. Si pasas de 34, recorta.`,
     formatoGuion: '26-34 palabras. Frase 1 = gancho. Luego el dato. Ultima = remate que conecta con la primera.',
   },
 }[DURACION];
@@ -162,7 +163,8 @@ REGLA CRITICA DEL CAMPO "desde":
 
 SOLO el JSON.`;
 
-const MODELOS = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+// gemini-2.5-flash primero: el 3.6 sale saturado casi siempre y hace perder tiempo.
+const MODELOS = ['gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-1.5-flash'];
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function llamarGemini() {
@@ -194,22 +196,36 @@ async function llamarGemini() {
   return null;
 }
 
-// Si el JSON llega cortado, vuelve a pedirlo (hasta 3 veces).
+// Si el JSON llega cortado o el guion se pasa de largo, vuelve a pedirlo.
 console.log(`Generando Reel de perros para: "${TEMA}"...`);
 let resultado = null;
-for (let vuelta = 1; vuelta <= 3 && !resultado; vuelta++) {
+let respaldo = null;
+for (let vuelta = 1; vuelta <= 4 && !resultado; vuelta++) {
   const texto = await llamarGemini();
   if (!texto) { console.error('Sin respuesta'); process.exit(1); }
   const limpio = texto.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
   try {
     const r = JSON.parse(limpio);
-    if (r.guion && Array.isArray(r.plan) && r.plan.length) resultado = r;
-    else console.warn(`Vuelta ${vuelta}: falta guion o plan, reintentando...`);
+    if (!(r.guion && Array.isArray(r.plan) && r.plan.length)) {
+      console.warn(`Vuelta ${vuelta}: falta guion o plan, reintentando...`);
+      continue;
+    }
+    const n = r.guion.trim().split(/\s+/).length;
+    if (n > CONFIG.maxPalabras) {
+      console.warn(`Vuelta ${vuelta}: guion de ${n} palabras, el maximo es ${CONFIG.maxPalabras}. Reintentando...`);
+      if (!respaldo || n < respaldo.n) respaldo = {r, n};
+      continue;
+    }
+    resultado = r;
   } catch (e) {
     console.warn(`Vuelta ${vuelta}: JSON cortado o invalido (${e.message}), reintentando...`);
   }
 }
-if (!resultado) { console.error('No se obtuvo un JSON valido despues de 3 vueltas'); process.exit(1); }
+if (!resultado && respaldo) {
+  console.warn(`Ninguno cumplio el largo. Uso el mas corto: ${respaldo.n} palabras.`);
+  resultado = respaldo.r;
+}
+if (!resultado) { console.error('No se obtuvo un guion valido despues de 4 vueltas'); process.exit(1); }
 
 const quitarTildes = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
@@ -242,7 +258,7 @@ resultado.plan.forEach((t, i) => {
 
 // Duracion
 const palabras = resultado.guion.trim().split(/\s+/).length;
-const segundos = Math.round(palabras / 2.6);
+const segundos = Math.round(palabras / 2.5);
 console.log(`\nPALABRAS: ${palabras} (aprox ${segundos}s de video)`);
 if (palabras < CONFIG.minPalabras) console.warn('AVISO: el guion salio corto.');
 if (palabras > CONFIG.maxPalabras) console.warn('AVISO: el guion salio largo.');
