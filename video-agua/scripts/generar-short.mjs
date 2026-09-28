@@ -1,175 +1,234 @@
 import fs from 'node:fs/promises';
 
 const KEY = process.env.GEMINI_KEY;
-const TEMA = process.env.TEMA;
+const TEMA = (process.env.TEMA ?? '').trim();
 
 if (!KEY || !TEMA) {
   console.error('Faltan GEMINI_KEY o TEMA');
   process.exit(1);
 }
 
-const prompt = `Eres el guionista del canal "Ingeniería Invisible". Creas Shorts de YouTube: videos verticales de 20 a 25 segundos.
+const MODELOS = ['gemini-3.6-flash', 'gemini-2.5-flash'];
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+const quitarBackticks = (t) => t.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+const textoDe = (data) => (data?.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('').trim();
 
-TEMA: ${TEMA}
+// Frase de gancho obligatoria que viene dentro del tema (si la hay)
+const GANCHO = (() => {
+  const m = TEMA.match(/primera frase del guion debe ser exactamente:\s*(.+?)(?=\s+OBLIGATORIO|\s+Búsquedas de clips|$)/i);
+  return m ? m[1].trim() : '';
+})();
 
-LO MAS IMPORTANTE DE TODO: la PRIMERA FRASE.
-El espectador decide en 2 segundos si se queda o pasa el dedo. La primera frase tiene que detenerlo.
+// El tema sin instrucciones, para la investigacion
+const TEMA_CORTO = TEMA.split('OBLIGATORIO')[0].trim();
 
-La primera frase debe cumplir TODO esto:
-- Maximo 10 palabras
-- Contener un numero concreto, una consecuencia grave, o algo que contradiga lo que la gente cree
-- Hablarle al espectador de tu (tu casa, tu carro, tus pies)
-- NUNCA empezar con: "Sabias que", "En este video", "La ingenieria", "Hoy vamos a", "Imagina que"
-
-Ejemplos de primeras frases BUENAS:
-- "Estas parado sobre 40 toneladas de concreto."
-- "Ese cable de tu poste te mata en medio segundo."
-- "El aire de tu cuarto pesa mas que tu perro."
-- "Un ascensor en caida libre no te mata. Te mata otra cosa."
-
-Ejemplos de primeras frases MALAS (nunca las uses):
-- "Sabias que el concreto es muy resistente?"
-- "La ingenieria esta en todas partes."
-- "Hoy te explico como funciona un ascensor."
-
-LA ULTIMA FRASE: tiene que cerrar el circulo.
-La ultima frase debe retomar la MISMA imagen o la MISMA palabra clave de la primera frase, pero ya con la respuesta.
-Esto hace que el video se sienta completo y que el espectador quiera volver a verlo desde el principio.
-No pongas un dato nuevo suelto al final: cierra lo que abriste.
-
-Ejemplo de circulo bien cerrado:
-- Primera: "Las llantas de tu carro reventarian a 300 por hora."
-- Ultima: "Por eso la del avion aterriza a 300 y no le pasa nada."
-
-Ejemplo de circulo MAL cerrado (no lo hagas):
-- Primera: "Las llantas de tu carro reventarian a 300 por hora."
-- Ultima: "La aviacion moderna es impresionante."
-
-LARGO: esto es lo tercero mas importante.
-El guion COMPLETO debe tener entre 50 y 70 palabras. Ni una mas.
-Es muy corto a proposito: la gente abandona los videos largos.
-Si te sobra informacion, BORRALA. Es mejor decir una sola cosa bien que tres a medias.
-No expliques el contexto. No hagas introduccion. Entra directo y sal rapido.
-
-Estructura obligatoria:
-1. El gancho (1 frase)
-2. La explicacion (2 o 3 frases cortas)
-3. El cierre que cierra el circulo (1 frase)
-
-CONTEXTO GEOGRAFICO: el publico es de Latinoamerica, NO de Espana.
-- La red electrica domestica es de 110 o 120 voltios. Los 220 se usan solo para aires acondicionados, estufas y secadoras. NUNCA asumas que un enchufe normal es de 220.
-- Los enchufes son de patas planas, no redondos.
-- Sistema metrico siempre: metros, litros, kilos, grados centigrados. Nunca pies, galones, libras ni Fahrenheit.
-- Espanol neutro latinoamericano. Usa "carro" y no "coche", "celular" y no "movil", "computador" y no "ordenador", "jugo" y no "zumo", "tu" y nunca "vosotros". Evita el verbo "coger".
-- Si mencionas precios o costos, usa dolares, no euros.
-
-Responde SOLO con JSON, sin backticks:
-
-{
-  "guion": "50-70 palabras EXACTAS. Primera frase = el gancho. Luego 2-3 frases de explicacion. Ultima frase = cierra el circulo con la primera. NO digas suscribete. Espanol neutro latinoamericano, frases muy cortas.",
-  "plan": [
-    {"desde":"","clip":"nombre.mp4","buscar":"english Pexels query","etiquetas":[{"texto":"TEXTO CORTO"}]}
-  ]
+async function llamar(modelo, cuerpo) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${KEY}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(cuerpo),
+  });
+  return res;
 }
 
-REGLAS DEL PLAN (el ritmo importa tanto como el guion):
-- plan: 7 u 8 tomas. NO menos de 7.
-- Cada toma dura 2 o 3 segundos solamente. Son cortes rapidos.
-- En un Short, un plano quieto de 6 segundos hace que la gente se salga. Por eso son tantas tomas.
-- Cada toma usa un archivo de clip DISTINTO. No repitas el mismo archivo dos veces.
-- buscar: en INGLES, generico y visual. Prefiere busquedas que Pexels SI tenga (maquinaria, cables, ciudad, manos, aparatos) en vez de terminos tecnicos raros.
-- etiquetas: maximo 1 por toma, maximo 3 palabras, y solo en 2 o 3 tomas (no en todas)
-- clip: nombre en espanol con guiones .mp4
+// ---------- PASO 1: investigacion con Google ----------
+async function investigar() {
+  const prompt = `Investiga este tema para un video corto de divulgación en español: ${TEMA_CORTO}
 
-REGLA CRITICA DEL CAMPO "desde":
-- La primera toma lleva desde: ""
-- CADA toma siguiente DEBE llevar en "desde" un fragmento EXACTO y literal del guion, copiado tal cual, de 3 a 6 palabras seguidas, que marque donde empieza esa toma.
-- Ese fragmento tiene que aparecer TEXTUALMENTE en el guion. No lo reescribas, no lo resumas, no cambies ni una palabra.
-- Los fragmentos deben ir en el mismo orden que aparecen en el guion, sin repetirse.
-- Reparte los fragmentos a lo largo de TODO el guion, no solo al principio.
+Busca información confiable y entrega NOTAS en viñetas, en español, con:
+- El mecanismo explicado paso a paso: qué pasa, por qué pasa y qué lo causa.
+- De 3 a 5 datos concretos y verificables: números, nombres técnicos, fechas o hechos históricos.
+- Los mitos o errores comunes sobre el tema, si existen.
+- La consecuencia práctica o el peligro para una persona común, y qué hacer.
+- Cómo se llama el objeto principal en distintos países de Latinoamérica, si cambia.
+No inventes nada. Si un dato no está claro, no lo incluyas.`;
 
-SOLO el JSON.`;
+  for (const modelo of MODELOS) {
+    for (let intento = 1; intento <= 2; intento++) {
+      try {
+        console.log(`Investigando con ${modelo} (intento ${intento}/2)...`);
+        const res = await llamar(modelo, {
+          contents: [{parts: [{text: prompt}]}],
+          tools: [{google_search: {}}],
+          generationConfig: {temperature: 0.3, maxOutputTokens: 8192},
+        });
+        if (res.status === 404 || res.status === 400) {
+          console.log(`  ${modelo} no acepta búsqueda (${res.status}), paso al siguiente`);
+          break;
+        }
+        if (!res.ok) {
+          console.log(`  respuesta ${res.status}, esperando 20s...`);
+          await esperar(20000);
+          continue;
+        }
+        const notas = textoDe(await res.json());
+        if (notas.length > 150) return notas;
+        console.log('  notas muy cortas, reintento...');
+      } catch (e) {
+        console.log(`  fallo: ${e.message}`);
+        await esperar(5000);
+      }
+    }
+  }
+  return '';
+}
 
-const MODELOS = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
-const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+// ---------- PASO 2: guion y plan ----------
+function promptGuion(notas) {
+  return `Eres el guionista del canal de YouTube "Ingeniería Invisible". Explicas en Shorts verticales cómo funcionan, y cuándo son peligrosas, las cosas que la gente usa o ve todos los días. El público es adulto, de toda Latinoamérica (sobre todo México, Argentina, Colombia, Perú y Chile).
 
-async function llamarGemini() {
+TEMA E INSTRUCCIONES DEL PRODUCTOR:
+${TEMA}
+
+NOTAS DE INVESTIGACIÓN (úsalas como fuente; no inventes datos que no estén aquí o que no sean de conocimiento seguro):
+${notas || '(sin notas: usa solo conocimiento seguro y evita números dudosos)'}
+
+REGLAS DEL GUION:
+- Entre 75 y 95 palabras. Es solo el texto que el narrador dice en voz alta.
+- Estructura obligatoria, en este orden:
+  1. Gancho de máximo 12 palabras, hablándole al espectador de tú.${GANCHO ? ` Debe ser exactamente: ${GANCHO}` : ''}
+  2. El mecanismo paso a paso: causa y efecto, como si se lo explicaras a un amigo con una analogía cotidiana.
+  3. Al menos UN dato concreto de las notas: un número, un nombre técnico o un hecho histórico.
+  4. La consecuencia práctica para el espectador: qué hacer o qué evitar.
+  5. Una frase final que conecte con la primera, para que el video se sienta como un círculo.
+- Frases cortas, máximo 18 palabras cada una.
+- Español neutro de Latinoamérica. Si el objeto tiene nombres distintos por país, menciona dos (por ejemplo: foco o bombillo, llave o grifo).
+- Escribe los números en letras (cincuenta grados, no 50 grados).
+- PROHIBIDO: frases de relleno como "es fascinante", "increíble", "la ingeniería es asombrosa", "¿sabías que...?", "en el mundo moderno", "hoy te voy a contar", "en este video", "no lo vas a creer", "suscríbete".
+- PROHIBIDO dentro del guion: títulos, números de sección, notas de clips, de tomas, de escenas o de imágenes, emojis, hashtags y corchetes. Solo narración.
+- No exageres el peligro. Si algo es raro, dilo como raro.
+
+REGLAS DEL PLAN DE TOMAS:
+- Entre 4 y 7 tomas, en el orden del guion.
+- "desde": frase EXACTA de 3 a 6 palabras copiada del guion donde empieza esa toma. La primera toma lleva "desde": "".
+- "clip": nombre único en español con guiones, terminado en .mp4 (por ejemplo cable-caliente.mp4).
+- "buscar": búsqueda en INGLÉS para video de stock, concreta y visual, del objeto exacto que se nombra en esa parte (por ejemplo "gas stove flame", no "danger"). Si el productor dio búsquedas, úsalas. NUNCA uses subscribe, thank you, intro, outro, youtube ni texto.
+- "etiquetas": lista con 0 o 1 etiqueta por toma: {"texto": "máximo 3 palabras", "cuando": "frase exacta del guion"}.
+
+Responde SOLO con este JSON:
+{"guion": "...", "plan": [{"desde": "", "clip": "nombre.mp4", "buscar": "english query", "etiquetas": [{"texto": "TEXTO", "cuando": "frase"}]}]}`;
+}
+
+async function generarGuion(notas) {
+  const prompt = promptGuion(notas);
   for (const modelo of MODELOS) {
     for (let intento = 1; intento <= 3; intento++) {
-      console.log(`Intento ${intento}/3 con ${modelo}...`);
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${KEY}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
+      try {
+        console.log(`Escribiendo guion con ${modelo} (intento ${intento}/3)...`);
+        const res = await llamar(modelo, {
           contents: [{parts: [{text: prompt}]}],
-          generationConfig: {temperature: 0.9, maxOutputTokens: 16000}
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const texto = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (texto) { console.log(`Respuesta de ${modelo}`); return texto; }
+          generationConfig: {temperature: 0.6, maxOutputTokens: 8192, responseMimeType: 'application/json'},
+        });
+        if (res.status === 404) {
+          console.log(`  ${modelo} no disponible, paso al siguiente`);
+          break;
+        }
+        if (!res.ok) {
+          console.log(`  respuesta ${res.status}, esperando 30s...`);
+          await esperar(30000);
+          continue;
+        }
+        const texto = quitarBackticks(textoDe(await res.json()));
+        const json = JSON.parse(texto);
+        if (typeof json.guion === 'string' && json.guion.trim() && Array.isArray(json.plan) && json.plan.length >= 2) {
+          return json;
+        }
+        console.log('  respuesta incompleta, reintento...');
+      } catch (e) {
+        console.log(`  JSON inválido o cortado (${e.message}), reintento...`);
+        await esperar(5000);
       }
-      const status = res.status;
-      if (status === 404) { console.log(`${modelo} no existe`); break; }
-      if (status === 503 || status === 429) { console.log(`${modelo} saturado, esperando 30s...`); await esperar(30000); continue; }
-      const err = await res.text();
-      console.error(`Error ${status}:`, err.substring(0, 200));
-      break;
     }
   }
   return null;
 }
 
-console.log(`Generando Short para: "${TEMA}"...`);
-const texto = await llamarGemini();
-if (!texto) { console.error('Sin respuesta'); process.exit(1); }
+// ---------- Limpieza y validacion ----------
+const PAL = /^\s*[(\[]?\s*\d*[.)]?\s*(clip|toma|escena|visual|imagen|b-roll|secci[oó]n|section|parte|cap[ií]tulo|t[ií]tulo|nota)\s*\d*\s*:.*$/gim;
+const MARCA_EN_LINEA = /[(\[]\s*(clip|toma|escena|visual|imagen|secci[oó]n|nota)\s*\d*\s*:[^)\]]*[)\]]/gi;
+const PROHIBIDAS_BUSQUEDA = /subscri|thank|watching|intro|outro|end ?screen|youtube|like button|channel/i;
 
-const limpio = texto.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-let resultado;
-try { resultado = JSON.parse(limpio); } catch (e) {
-  console.error('JSON invalido:', e.message);
-  console.error(limpio.substring(0, 300));
+function limpiarGuion(g) {
+  return g
+    .replace(PAL, '')
+    .replace(MARCA_EN_LINEA, '')
+    .replace(/[#*_\[\]]/g, '')
+    .replace(/\s*\n\s*/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function forzarGancho(g) {
+  if (!GANCHO) return g;
+  const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();
+  if (norm(g).startsWith(norm(GANCHO).slice(0, 25))) return g;
+  console.log('AVISO: Gemini no respetó el gancho, lo pongo yo');
+  const resto = g.replace(/^[^.?!]*[.?!]\s*/, '');
+  const gancho = /[.?!]$/.test(GANCHO) ? GANCHO : GANCHO + '.';
+  return `${gancho} ${resto}`.trim();
+}
+
+function normalizarPlan(plan) {
+  const usados = new Set();
+  let ultimaBusqueda = '';
+  return plan
+    .filter((t) => t && typeof t === 'object')
+    .map((t, i) => {
+      let clip = String(t.clip ?? `toma-${i + 1}`)
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\.mp4$/, '')
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/^-+|-+$/g, '') || `toma-${i + 1}`;
+      while (usados.has(clip)) clip += `-${i + 1}`;
+      usados.add(clip);
+
+      let buscar = String(t.buscar ?? '').trim();
+      if (!buscar || PROHIBIDAS_BUSQUEDA.test(buscar)) buscar = ultimaBusqueda || TEMA_CORTO.split(' ').slice(0, 4).join(' ');
+      else ultimaBusqueda = buscar;
+
+      let etiquetas = t.etiquetas;
+      if (typeof etiquetas === 'string') etiquetas = [{texto: etiquetas}];
+      if (!Array.isArray(etiquetas)) etiquetas = [];
+      etiquetas = etiquetas
+        .map((e) => (typeof e === 'string' ? {texto: e} : e))
+        .filter((e) => e && typeof e.texto === 'string' && e.texto.trim())
+        .slice(0, 1)
+        .map((e) => ({texto: e.texto.trim(), ...(e.cuando ? {cuando: String(e.cuando)} : {})}));
+
+      return {desde: i === 0 ? '' : String(t.desde ?? ''), clip: `${clip}.mp4`, buscar, etiquetas};
+    });
+}
+
+// ---------- Ejecucion ----------
+console.log(`Generando Short para: "${TEMA_CORTO}"`);
+
+const notas = await investigar();
+if (notas) {
+  console.log('\n----- NOTAS DE INVESTIGACIÓN -----\n' + notas + '\n----------------------------------\n');
+} else {
+  console.log('AVISO: sin investigación, sigo solo con el tema');
+}
+
+const resultado = await generarGuion(notas);
+if (!resultado) {
+  console.error('No se pudo generar el guion después de varios intentos');
   process.exit(1);
 }
 
-if (!resultado.guion || !resultado.plan) { console.error('Falta guion o plan'); process.exit(1); }
+let guion = forzarGancho(limpiarGuion(resultado.guion));
+const plan = normalizarPlan(resultado.plan);
 
-// Control de largo: el video debe quedar en 20-25 segundos.
-const palabras = resultado.guion.trim().split(/\s+/).length;
-const segundos = Math.round(palabras / 2.6);
-console.log(`\nPALABRAS: ${palabras} (aprox ${segundos}s de video)`);
-if (palabras > 85) console.warn('AVISO: el guion salio largo, el Short va a pasar de 30s.');
+const palabras = guion.split(/\s+/).filter(Boolean).length;
+const frases = guion.match(/[^.?!]+[.?!]+/g) ?? [guion];
+console.log(`PRIMERA: ${frases[0].trim()}`);
+console.log(`ULTIMA: ${frases[frases.length - 1].trim()}`);
+console.log(`PALABRAS: ${palabras}${palabras > 110 ? ' (AVISO: largo)' : ''}${palabras < 60 ? ' (AVISO: corto)' : ''}`);
 
-// Control de ritmo: pocas tomas = planos largos = la gente se sale.
-const tomas = resultado.plan.length;
-console.log(`TOMAS: ${tomas} (aprox ${(segundos / tomas).toFixed(1)}s por toma)`);
-if (tomas < 6) console.warn('AVISO: salieron pocas tomas, el ritmo va a quedar lento.');
-
-// Control de repeticion: cada toma deberia traer imagen nueva.
-const clips = resultado.plan.map((t) => t.clip);
-const unicos = new Set(clips).size;
-console.log(`CLIPS DISTINTOS: ${unicos} de ${tomas}`);
-if (unicos < tomas) console.warn('AVISO: hay clips repetidos, se van a ver imagenes iguales.');
-
-// Aviso si Gemini invento fragmentos que no estan en el guion.
-const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
-const guionNorm = normalizar(resultado.guion);
-let fallos = 0;
-resultado.plan.forEach((toma, i) => {
-  if (i === 0 || !toma.desde) return;
-  if (!guionNorm.includes(normalizar(toma.desde))) {
-    console.warn(`AVISO toma ${i + 1}: "${toma.desde}" no aparece en el guion`);
-    fallos++;
-  }
-});
-if (fallos) console.warn(`${fallos} de ${tomas} tomas se van a repartir por tiempo.`);
-
-const frases = resultado.guion.trim().split(/(?<=[.!?])\s+/);
-console.log(`\nPRIMERA: ${frases[0]}`);
-console.log(`ULTIMA:  ${frases[frases.length - 1]}\n`);
-
-await fs.writeFile('public/guion.txt', resultado.guion, 'utf8');
-await fs.writeFile('public/plan.json', JSON.stringify(resultado.plan, null, 2), 'utf8');
-console.log(`Guion: ${resultado.guion.length} chars, Plan: ${tomas} tomas`);
+await fs.writeFile('public/guion.txt', guion, 'utf8');
+await fs.writeFile('public/plan.json', JSON.stringify(plan, null, 2), 'utf8');
+console.log(`Plan: ${plan.length} tomas`);
+plan.forEach((t, i) => console.log(`  ${i + 1}. ${t.clip} <- "${t.buscar}"${t.desde ? ` desde "${t.desde}"` : ''}`));
+console.log('Listo.');
