@@ -96,7 +96,7 @@ NOTAS DE INVESTIGACIÓN (úsalas como fuente; no inventes datos que no estén aq
 ${notas || '(sin notas: usa solo conocimiento seguro y evita números dudosos)'}
 
 REGLAS DEL GUION:
-- Entre 75 y 95 palabras. Es solo el texto que el narrador dice en voz alta.
+- Entre 55 y 68 palabras (unos 22 a 26 segundos). Es solo el texto que el narrador dice en voz alta. Cada palabra debe ganarse su lugar.
 - Estructura obligatoria, en este orden:
   1. Gancho de máximo 12 palabras, hablándole al espectador de tú.${GANCHO ? ` Debe ser exactamente: ${GANCHO}` : ''}
   2. El mecanismo paso a paso: causa y efecto, como si se lo explicaras a un amigo con una analogía cotidiana.
@@ -236,7 +236,7 @@ const palabras = guion.split(/\s+/).filter(Boolean).length;
 const frases = guion.match(/[^.?!]+[.?!]+/g) ?? [guion];
 console.log(`PRIMERA: ${frases[0].trim()}`);
 console.log(`ULTIMA: ${frases[frases.length - 1].trim()}`);
-console.log(`PALABRAS: ${palabras}${palabras > 110 ? ' (AVISO: largo)' : ''}${palabras < 60 ? ' (AVISO: corto)' : ''}`);
+console.log(`PALABRAS: ${palabras}${palabras > 75 ? ' (AVISO: largo)' : ''}${palabras < 45 ? ' (AVISO: corto)' : ''}`);
 
 await fs.writeFile('public/guion.txt', guion, 'utf8');
 await fs.writeFile('public/plan.json', JSON.stringify(plan, null, 2), 'utf8');
