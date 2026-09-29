@@ -45,6 +45,7 @@ Busca información confiable y entrega NOTAS en viñetas, en español, con:
 - Los mitos o errores comunes sobre el tema, si existen.
 - La consecuencia práctica o el peligro para una persona común, y qué hacer.
 - Cómo se llama el objeto principal en distintos países de Latinoamérica, si cambia.
+Distingue la explicación científica de las explicaciones populares que circulan en internet: si una explicación muy repetida es falsa o inexacta, escríbela con la etiqueta MITO.
 No inventes nada. Si un dato no está claro, no lo incluyas.`;
 
   for (const modelo of MODELOS_INVESTIGACION) {
@@ -94,6 +95,11 @@ ${TEMA}
 
 NOTAS DE INVESTIGACIÓN (úsalas como fuente; no inventes datos que no estén aquí o que no sean de conocimiento seguro):
 ${notas || '(sin notas: usa solo conocimiento seguro y evita números dudosos)'}
+
+PRIORIDAD DE LAS FUENTES:
+- La explicación y las prohibiciones del productor mandan. Si las notas contradicen al productor, sigue al productor.
+- Lo que las notas marquen como MITO nunca se dice como cierto; solo puede mencionarse para desmentirlo.
+- No repitas explicaciones populares de internet como si fueran ciertas. Si no estás seguro de un dato, omítelo: es mejor un dato menos que un dato falso.
 
 REGLAS DEL GUION:
 - Entre 55 y 68 palabras (unos 22 a 26 segundos). Es solo el texto que el narrador dice en voz alta. Cada palabra debe ganarse su lugar.
