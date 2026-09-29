@@ -127,12 +127,15 @@ Responde SOLO con este JSON:
 {"guion": "...", "plan": [{"desde": "", "clip": "nombre.mp4", "buscar": "english query", "etiquetas": [{"texto": "TEXTO", "cuando": "frase"}]}]}`;
 }
 
+// Modelos para escribir el guion; el ultimo es el mas liviano, como respaldo
+const MODELOS_GUION = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+
 async function generarGuion(notas) {
   const prompt = promptGuion(notas);
-  for (const modelo of MODELOS) {
-    for (let intento = 1; intento <= 3; intento++) {
+  for (const modelo of MODELOS_GUION) {
+    for (let intento = 1; intento <= 4; intento++) {
       try {
-        console.log(`Escribiendo guion con ${modelo} (intento ${intento}/3)...`);
+        console.log(`Escribiendo guion con ${modelo} (intento ${intento}/4)...`);
         const res = await llamar(modelo, {
           contents: [{parts: [{text: prompt}]}],
           generationConfig: {temperature: 0.6, maxOutputTokens: 8192, responseMimeType: 'application/json'},
@@ -141,14 +144,20 @@ async function generarGuion(notas) {
           console.log(`  ${modelo} no disponible, paso al siguiente`);
           break;
         }
+        if (res.status === 429) {
+          console.log('  429 (límite de solicitudes), esperando 60s...');
+          await esperar(60000);
+          continue;
+        }
         if (!res.ok) {
-          console.log(`  respuesta ${res.status}, esperando 30s...`);
-          await esperar(30000);
+          console.log(`  respuesta ${res.status}, esperando 40s...`);
+          await esperar(40000);
           continue;
         }
         const texto = quitarBackticks(textoDe(await res.json()));
         const json = JSON.parse(texto);
         if (typeof json.guion === 'string' && json.guion.trim() && Array.isArray(json.plan) && json.plan.length >= 2) {
+          console.log(`  guion escrito con ${modelo}`);
           return json;
         }
         console.log('  respuesta incompleta, reintento...');
@@ -227,6 +236,12 @@ if (notas) {
   console.log('\n----- NOTAS DE INVESTIGACIÓN -----\n' + notas + '\n----------------------------------\n');
 } else {
   console.log('AVISO: sin investigación, sigo solo con el tema');
+}
+
+// Pausa corta para no chocar con el limite de solicitudes por minuto
+if (notas) {
+  console.log('Pausa de 20s antes de escribir el guion...');
+  await esperar(20000);
 }
 
 const resultado = await generarGuion(notas);
