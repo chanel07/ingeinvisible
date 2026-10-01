@@ -127,8 +127,8 @@ Responde SOLO con este JSON:
 {"guion": "...", "plan": [{"desde": "", "clip": "nombre.mp4", "buscar": "english query", "etiquetas": [{"texto": "TEXTO", "cuando": "frase"}]}]}`;
 }
 
-// Modelos para escribir el guion; el ultimo es el mas liviano, como respaldo
-const MODELOS_GUION = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+// Modelos para escribir el guion
+const MODELOS_GUION = ['gemini-3.6-flash', 'gemini-2.5-flash'];
 
 async function generarGuion(notas) {
   const prompt = promptGuion(notas);
@@ -136,16 +136,21 @@ async function generarGuion(notas) {
     for (let intento = 1; intento <= 4; intento++) {
       try {
         console.log(`Escribiendo guion con ${modelo} (intento ${intento}/4)...`);
+        const config = {temperature: 0.6, maxOutputTokens: 8192, responseMimeType: 'application/json'};
+        // Los modelos 2.5 gastan espacio "pensando" y cortan el JSON: se les apaga
+        if (modelo.startsWith('gemini-2.5')) config.thinkingConfig = {thinkingBudget: 0};
         const res = await llamar(modelo, {
           contents: [{parts: [{text: prompt}]}],
-          generationConfig: {temperature: 0.6, maxOutputTokens: 8192, responseMimeType: 'application/json'},
+          generationConfig: config,
         });
         if (res.status === 404) {
           console.log(`  ${modelo} no disponible, paso al siguiente`);
           break;
         }
         if (res.status === 429) {
-          console.log('  429 (límite de solicitudes), esperando 60s...');
+          const msg = (await res.text()).replace(/\s+/g, ' ').slice(0, 220);
+          console.log(`  429 (límite de solicitudes): ${msg}`);
+          console.log('  esperando 60s...');
           await esperar(60000);
           continue;
         }
