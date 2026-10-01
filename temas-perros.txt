@@ -11,7 +11,7 @@
 [x] Qué significa cuando tu perro te da la pata sin pedirlo
 [x] Por qué los perros duermen tanto
 [x] Qué ve tu perro cuando se mira al espejo
-Por qué tu perro esconde la comida
+[x] Por qué tu perro esconde la comida
 Cuánto huele un perro comparado con una persona
 Por qué los perros dan vueltas persiguiendo su cola
 Qué significa que tu perro duerma de espaldas
