@@ -16,6 +16,11 @@ const MARCA_2 = MARCA[1] ?? '';
 // Si el workflow pone otra marca y no define cierre, no se muestra nada.
 const CIERRE = process.env.REMOTION_CIERRE ?? (process.env.REMOTION_MARCA ? '' : 'Suscríbete');
 
+// Titulo grande de los primeros segundos (la pregunta del video).
+// Lo pasa el workflow con REMOTION_TITULO. Si viene vacio, no se muestra.
+const TITULO = (process.env.REMOTION_TITULO ?? '').replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
+const SEGUNDOS_TITULO = 2.6;
+
 const AMARILLO = '#f5c400';
 const ROJO = '#ff0000';
 const OSCURO = '#0a1217';
@@ -40,46 +45,34 @@ const listaEtiquetas = (et: unknown): Etiqueta[] => {
   return [];
 };
 
-// Une todos los subtitulos en un solo texto y le pone a cada letra su
-// instante aproximado. Asi se puede ubicar un fragmento aunque los
-// subtitulos vengan por frase completa y no por palabra.
-type Indice = {texto: string; tiempos: number[]};
-const cacheIndice = new WeakMap<Caption[], Indice>();
-
-const armarIndice = (captions: Caption[]): Indice => {
-  const guardado = cacheIndice.get(captions);
-  if (guardado) return guardado;
-  let texto = '';
-  const tiempos: number[] = [];
-  for (const c of captions) {
-    const n = norm(c.text);
-    if (!n) continue;
-    if (texto) {
-      texto += ' ';
-      tiempos.push(c.start);
-    }
-    const dur = Math.max(0.01, c.end - c.start);
-    for (let k = 0; k < n.length; k++) {
-      texto += n[k];
-      tiempos.push(c.start + (dur * k) / n.length);
-    }
-  }
-  const indice = {texto, tiempos};
-  cacheIndice.set(captions, indice);
-  return indice;
-};
-
-// Busca el fragmento COMPLETO. Nunca pedazos de 2 palabras: eso hacia que
-// "tu perro" se enganchara con la ultima frase y amontonara las tomas.
 const buscarInicio = (captions: Caption[], frase: string | undefined, desde: number) => {
   if (!frase) return null;
   const f = norm(frase);
-  if (!f || f.split(' ').length < 2) return null;
-  const {texto, tiempos} = armarIndice(captions);
-  let pos = texto.indexOf(f);
-  while (pos >= 0) {
-    if (tiempos[pos] >= desde - 0.01) return tiempos[pos];
-    pos = texto.indexOf(f, pos + 1);
+  if (!f) return null;
+
+  const directo = captions.find((x) => x.start >= desde - 0.01 && norm(x.text).includes(f));
+  if (directo) return directo.start;
+
+  const posibles = captions.filter((x) => x.start >= desde - 0.01);
+  let acumulado = '';
+  const marcas: number[] = [];
+  for (const c of posibles) {
+    acumulado += (acumulado ? ' ' : '') + norm(c.text);
+    marcas.push(acumulado.length);
+  }
+
+  const ubicar = (pos: number) => {
+    const i = marcas.findIndex((fin) => fin > pos);
+    return i >= 0 ? posibles[i].start : null;
+  };
+
+  const pos = acumulado.indexOf(f);
+  if (pos >= 0) return ubicar(pos);
+
+  const palabras = f.split(' ');
+  for (let corte = palabras.length - 1; corte >= 2; corte--) {
+    const p = acumulado.indexOf(palabras.slice(0, corte).join(' '));
+    if (p >= 0) return ubicar(p);
   }
   return null;
 };
@@ -145,6 +138,41 @@ const TarjetaSeccion = ({numero, titulo}: {numero: number; titulo: string}) => {
         <div style={{color: AMARILLO, fontSize: 120, fontWeight: 900, lineHeight: 1}}>{dosDigitos(numero)}</div>
         <div style={{width: 520 * barra, height: 10, background: AMARILLO, margin: '20px 0'}} />
         <div style={{color: '#fff', fontSize: 100, fontWeight: 900, textTransform: 'uppercase', textShadow: '0 6px 30px rgba(0,0,0,0.7)'}}>{titulo}</div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+// Titulo grande del inicio: visible desde el fotograma 0 (sirve tambien de portada)
+const TituloInicio = () => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const sale = interpolate(frame, [(SEGUNDOS_TITULO - 0.4) * fps, SEGUNDOS_TITULO * fps], [1, 0], fijo);
+  const crece = interpolate(frame, [0, SEGUNDOS_TITULO * fps], [1, 1.05], fijo);
+  const palabras = TITULO.toUpperCase().split(' ');
+  const ultima = palabras.length - 1;
+  return (
+    <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', padding: '0 7%', opacity: sale}}>
+      <AbsoluteFill style={{background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 65%, transparent 100%)'}} />
+      <div
+        style={{
+          marginTop: '-18%',
+          transform: `scale(${crece})`,
+          textAlign: 'center',
+          fontSize: palabras.join(' ').length > 34 ? 78 : 92,
+          fontWeight: 900,
+          lineHeight: 1.12,
+          letterSpacing: 1,
+          color: '#fff',
+          textShadow: '0 0 18px rgba(0,0,0,0.95), 0 6px 0 #000, 0 -2px 0 #000, 3px 0 0 #000, -3px 0 0 #000',
+        }}
+      >
+        {palabras.map((p, i) => (
+          <span key={i} style={{color: i === ultima ? AMARILLO : '#fff'}}>
+            {p}
+            {i < ultima ? ' ' : ''}
+          </span>
+        ))}
       </div>
     </AbsoluteFill>
   );
@@ -243,6 +271,12 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
           <TarjetaSeccion numero={s.numero} titulo={s.titulo} />
         </Sequence>
       ))}
+
+      {TITULO && (
+        <Sequence from={0} durationInFrames={Math.round(SEGUNDOS_TITULO * fps)}>
+          <TituloInicio />
+        </Sequence>
+      )}
 
       <div style={{position: 'absolute', top: 0, left: 0, right: 0, height: 8, background: 'rgba(255,255,255,0.15)'}}>
         <div style={{width: `${(frame / durationInFrames) * 100}%`, height: '100%', background: AMARILLO}} />
