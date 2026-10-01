@@ -119,6 +119,12 @@ jobs:
         working-directory: video-agua
         run: |
           mkdir -p out
+          TITULO=""
+          if [ -f out/metadatos.txt ]; then
+            TITULO=$(sed -n '2p' out/metadatos.txt)
+          fi
+          echo "Título en pantalla: $TITULO"
+          export REMOTION_TITULO="$TITULO"
           npx remotion render Short out/short-final.mp4 \
             --concurrency=2 \
             --jpeg-quality=95 \
