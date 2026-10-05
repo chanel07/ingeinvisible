@@ -22,6 +22,12 @@ const GANCHO = (() => {
 // El tema sin instrucciones, para la investigacion
 const TEMA_CORTO = TEMA.split('OBLIGATORIO')[0].trim();
 
+// Frase con la que empieza la escena cotidiana. Se elige al azar para que no todos
+// los Shorts suenen igual. Si el productor ya pidio una en el tema, se respeta la suya.
+const APERTURAS = ['Imagina que', 'Te ha pasado que', 'Seguro has visto', 'Piensa en la última vez que', 'Seguro te ha pasado que'];
+const APERTURA_PEDIDA = /(imagina que|te ha pasado|seguro has visto|piensa en la [uú]ltima vez)/i.test(TEMA.split('OBLIGATORIO').slice(1).join(' '));
+const APERTURA = APERTURAS[Math.floor(Math.random() * APERTURAS.length)];
+
 async function llamar(modelo, cuerpo) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${KEY}`;
   const res = await fetch(url, {
@@ -103,13 +109,15 @@ PRIORIDAD DE LAS FUENTES:
 
 REGLAS DEL GUION:
 - Entre 55 y 68 palabras (unos 22 a 26 segundos). Es solo el texto que el narrador dice en voz alta. Cada palabra debe ganarse su lugar.
+- TONO: es una conversación con un amigo, no una clase ni una enciclopedia. Háblale de tú, con palabras de todos los días. Se vale una pregunta corta al espectador.
 - Estructura obligatoria, en este orden:
   1. Gancho de máximo 12 palabras, hablándole al espectador de tú.${GANCHO ? ` Debe ser exactamente: ${GANCHO}` : ''}
-  2. El mecanismo paso a paso: causa y efecto, como si se lo explicaras a un amigo con una analogía cotidiana.
-  3. Al menos UN dato concreto de las notas: un número, un nombre técnico o un hecho histórico.
-  4. La consecuencia práctica para el espectador: qué hacer o qué evitar.
-  5. Una frase final que conecte con la primera, para que el video se sienta como un círculo.
-- Frases cortas, máximo 18 palabras cada una.
+  2. Escena cotidiana: UNA sola frase corta, de máximo 14 palabras, que ponga al espectador en una situación que seguramente ha vivido.${APERTURA_PEDIDA ? ' Usa la forma de empezar que pidió el productor.' : ` Debe empezar con: ${APERTURA}`}
+  3. El mecanismo paso a paso: causa y efecto, contado con una comparación de la vida diaria.
+  4. Al menos UN dato concreto de las notas: un número, un nombre técnico o un hecho histórico.
+  5. La consecuencia práctica para el espectador: qué hacer o qué evitar.
+  6. Cierre: una frase que empiece con La próxima vez que, y que conecte con el gancho, para que lo recuerde cuando le pase.
+- Frases cortas, máximo 18 palabras cada una. La escena y el cierre no pueden quitarle espacio a la explicación: si falta espacio, acorta la escena, nunca el mecanismo ni el dato.
 - Español neutro de Latinoamérica. Si el objeto tiene nombres distintos por país, menciona dos (por ejemplo: foco o bombillo, llave o grifo).
 - Escribe los números en letras (cincuenta grados, no 50 grados).
 - PROHIBIDO: frases de relleno como "es fascinante", "increíble", "la ingeniería es asombrosa", "¿sabías que...?", "en el mundo moderno", "hoy te voy a contar", "en este video", "no lo vas a creer", "suscríbete".
@@ -127,7 +135,7 @@ Responde SOLO con este JSON:
 {"guion": "...", "plan": [{"desde": "", "clip": "nombre.mp4", "buscar": "english query", "etiquetas": [{"texto": "TEXTO", "cuando": "frase"}]}]}`;
 }
 
-// Modelos para escribir el guion
+// Modelos para escribir el guion; el ultimo es el mas liviano, como respaldo
 const MODELOS_GUION = ['gemini-3.6-flash', 'gemini-2.5-flash'];
 
 async function generarGuion(notas) {
@@ -235,6 +243,7 @@ function normalizarPlan(plan) {
 
 // ---------- Ejecucion ----------
 console.log(`Generando Short para: "${TEMA_CORTO}"`);
+console.log(APERTURA_PEDIDA ? 'Escena: la pidió el productor en el tema' : `Escena: empieza con "${APERTURA}"`);
 
 const notas = await investigar();
 if (notas) {
