@@ -1,7 +1,7 @@
 [x] Cómo funciona un ascensor
 [x] Por qué los rascacielos no se caen con el viento
 [x] Cómo sabe un semáforo cuándo cambiar
-Qué hay debajo de la calle que pisas
+[x] Qué hay debajo de la calle que pisas
 Cómo funciona una nevera explicado sencillo
 Por qué los aviones pueden volar siendo tan pesados
 Cómo llega la electricidad desde la planta hasta tu enchufe
