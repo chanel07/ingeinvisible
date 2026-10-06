@@ -12,7 +12,7 @@
 [x] Por qué los perros duermen tanto
 [x] Qué ve tu perro cuando se mira al espejo
 [x] Por qué tu perro esconde la comida
-Cuánto huele un perro comparado con una persona
+[x] Cuánto huele un perro comparado con una persona
 Por qué los perros dan vueltas persiguiendo su cola
 Qué significa que tu perro duerma de espaldas
 Por qué tu perro se pone triste cuando sales
