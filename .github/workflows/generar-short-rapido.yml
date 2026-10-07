@@ -2,9 +2,7 @@ name: Generar Short RAPIDO
 
 on:
   schedule:
-    - cron: '0 13 * * *'
     - cron: '0 19 * * *'
-    - cron: '0 1 * * *'
   workflow_dispatch:
     inputs:
       tema:
@@ -54,13 +52,17 @@ jobs:
       - name: Elegir tema
         id: tema
         working-directory: video-agua
+        env:
+          TEMA_INPUT: ${{ inputs.tema }}
         run: |
-          if [ -n "${{ inputs.tema }}" ]; then
-            echo "TEMA=${{ inputs.tema }}" >> $GITHUB_OUTPUT
+          if [ -n "$TEMA_INPUT" ]; then
+            TEMA="$TEMA_INPUT"
           else
             TEMA=$(node scripts/siguiente-tema.mjs ../temas-shorts.txt)
-            echo "TEMA=$TEMA" >> $GITHUB_OUTPUT
           fi
+          TEMA=$(printf '%s' "$TEMA" | tr '\n' ' ')
+          echo "Tema elegido: $TEMA"
+          echo "TEMA=$TEMA" >> "$GITHUB_OUTPUT"
 
       - name: Generar guion y plan con Gemini
         working-directory: video-agua
@@ -94,6 +96,7 @@ jobs:
         working-directory: video-agua
         env:
           PEXELS_KEY: ${{ secrets.PEXELS_KEY }}
+          PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
         run: rm -rf public/clips && node scripts/descargar-clips.mjs
 
       - name: Preparar clips
@@ -138,12 +141,14 @@ jobs:
           ffprobe -v error -show_entries format=duration,bit_rate -of default=noprint_wrappers=1 out/short-final.mp4
 
       - name: Subir Short al repositorio
+        env:
+          TEMA: ${{ steps.tema.outputs.TEMA }}
         run: |
           cd video-agua
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add -f out/short-final.mp4
-          git commit -m "Short: ${{ steps.tema.outputs.TEMA }}"
+          git commit -m "Short: ${TEMA:0:80}"
           git push
           cd ..
           git add temas-shorts.txt
