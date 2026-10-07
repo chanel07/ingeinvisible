@@ -116,7 +116,7 @@ REGLAS DEL GUION:
   3. El mecanismo paso a paso: causa y efecto, contado con una comparación de la vida diaria.
   4. Al menos UN dato concreto de las notas: un número, un nombre técnico o un hecho histórico.
   5. La consecuencia práctica para el espectador: qué hacer o qué evitar.
-  6. Cierre: una frase que empiece con La próxima vez que, y que conecte con el gancho, para que lo recuerde cuando le pase.
+  6. Cierre: una frase COMPLETA, de al menos 10 palabras, que conecte con el gancho y deje una idea clara para recordar. Puede empezar con La próxima vez que, pero solo si queda natural; en ese caso debe decir qué va a pasar o qué va a recordar el espectador (por ejemplo: La próxima vez que veas X, recuerda que Y). Nunca dejes la frase a medias.
 - Frases cortas, máximo 18 palabras cada una. La escena y el cierre no pueden quitarle espacio a la explicación: si falta espacio, acorta la escena, nunca el mecanismo ni el dato.
 - Español neutro de Latinoamérica. Si el objeto tiene nombres distintos por país, menciona dos (por ejemplo: foco o bombillo, llave o grifo).
 - Escribe los números en letras (cincuenta grados, no 50 grados).
@@ -272,6 +272,8 @@ const frases = guion.match(/[^.?!]+[.?!]+/g) ?? [guion];
 console.log(`PRIMERA: ${frases[0].trim()}`);
 console.log(`ULTIMA: ${frases[frases.length - 1].trim()}`);
 console.log(`PALABRAS: ${palabras}${palabras > 75 ? ' (AVISO: largo)' : ''}${palabras < 45 ? ' (AVISO: corto)' : ''}`);
+const ultima = frases[frases.length - 1].trim();
+if (ultima.split(/\s+/).length < 8) console.log('AVISO: la última frase es muy corta, revisa que el cierre no haya quedado a medias');
 
 await fs.writeFile('public/guion.txt', guion, 'utf8');
 await fs.writeFile('public/plan.json', JSON.stringify(plan, null, 2), 'utf8');
