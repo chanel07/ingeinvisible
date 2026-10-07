@@ -13,6 +13,23 @@ console.log(PIXABAY ? 'Fuentes: Pexels + Pixabay' : 'Fuentes: solo Pexels (no ha
 // Busquedas que traen plantillas de YouTube en ingles ("subscribe", "thank you for watching"...)
 const PROHIBIDAS = /subscri|thank|watching|outro|end ?screen|youtube|like button|follow us|channel|bell icon|social media/i;
 
+// Palabras que no sirven para saber de que trata un video
+const VACIAS = new Set(['the', 'and', 'with', 'from', 'into', 'over', 'under', 'close', 'view', 'slow', 'motion', 'shot', 'footage', 'video', 'stock', 'background', 'night', 'day', 'person', 'people', 'man', 'woman', 'hand', 'hands']);
+
+const raiz = (w) => w.replace(/(ies)$/, 'y').replace(/(es|s)$/, '');
+const palabrasClave = (q) => [...new Set(q.toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter((w) => w.length >= 4 && !VACIAS.has(w)).map(raiz))];
+
+// ¿La descripcion del video tiene las palabras de la busqueda?
+// Con 1 o 2 palabras clave deben estar todas; con mas, al menos la mitad.
+const coincide = (q, descripcion) => {
+  const claves = palabrasClave(q);
+  if (!claves.length) return true;
+  const texto = descripcion.toLowerCase().replace(/[^a-z]/g, ' ');
+  const hallados = claves.filter((c) => texto.includes(c)).length;
+  const minimo = claves.length <= 2 ? claves.length : Math.ceil(claves.length / 2);
+  return hallados >= minimo;
+};
+
 const plan = JSON.parse(await fs.readFile('public/plan.json', 'utf8'));
 const tomas = Array.isArray(plan) ? plan : plan.plan;
 await fs.mkdir('public/clips', {recursive: true});
@@ -22,7 +39,7 @@ const usados = new Set();
 const hechos = new Set();
 const listos = [];
 const pendientes = [];
-const cuenta = {pexels: 0, pixabay: 0, fotos: 0};
+const cuenta = {pexels: 0, pixabay: 0, fotos: 0, sinCoincidir: 0};
 let ultimaBuena = '';
 
 const pedir = async (url, headers = {}) => {
@@ -34,44 +51,53 @@ const pedir = async (url, headers = {}) => {
   return res.json();
 };
 
+// Las respuestas se guardan para no repetir la misma busqueda dos veces
+const cache = new Map();
+const pedirUnaVez = async (url, headers) => {
+  if (!cache.has(url)) cache.set(url, await pedir(url, headers));
+  return cache.get(url);
+};
+
 // ---------- Pexels ----------
-const buscarVideoPexels = async (q) => {
-  const data = await pedir(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=15`, {Authorization: KEY});
+const buscarVideoPexels = async (q, estricto) => {
+  const data = await pedirUnaVez(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=20`, {Authorization: KEY});
   for (const v of data?.videos ?? []) {
     if (usados.has(`v${v.id}`) || v.duration < 5) continue;
+    if (estricto && !coincide(q, v.url ?? '')) continue;
     const archivos = (v.video_files ?? [])
       .filter((f) => f.file_type === 'video/mp4' && f.width >= 1280 && f.width <= 1920)
       .sort((a, b) => b.width - a.width);
     if (archivos.length) {
-      return {id: `v${v.id}`, link: archivos[0].link, info: `Pexels video ${archivos[0].width}px ${v.duration}s`, fuente: 'pexels'};
+      return {id: `v${v.id}`, link: archivos[0].link, info: `Pexels video ${archivos[0].width}px ${v.duration}s${estricto ? '' : ', SIN COINCIDIR'}`, fuente: 'pexels', estricto};
     }
   }
   return null;
 };
 
-const buscarFotoPexels = async (q) => {
-  const data = await pedir(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=15`, {Authorization: KEY});
+const buscarFotoPexels = async (q, estricto) => {
+  const data = await pedirUnaVez(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=20`, {Authorization: KEY});
   for (const p of data?.photos ?? []) {
     if (usados.has(`f${p.id}`)) continue;
+    if (estricto && !coincide(q, `${p.alt ?? ''} ${p.url ?? ''}`)) continue;
     const link = p.src?.large2x || p.src?.original;
-    if (link) return {id: `f${p.id}`, link, info: 'Pexels FOTO', foto: true};
+    if (link) return {id: `f${p.id}`, link, info: `Pexels FOTO${estricto ? '' : ', SIN COINCIDIR'}`, foto: true, estricto};
   }
   return null;
 };
 
 // ---------- Pixabay ----------
-const buscarVideoPixabay = async (q) => {
+const buscarVideoPixabay = async (q, estricto) => {
   if (!PIXABAY) return null;
-  const data = await pedir(`https://pixabay.com/api/videos/?key=${PIXABAY}&q=${encodeURIComponent(q.slice(0, 100))}&per_page=20&safesearch=true`);
+  const data = await pedirUnaVez(`https://pixabay.com/api/videos/?key=${PIXABAY}&q=${encodeURIComponent(q.slice(0, 100))}&per_page=20&safesearch=true`);
   for (const v of data?.hits ?? []) {
     if (usados.has(`x${v.id}`) || (v.duration ?? 0) < 5) continue;
-    // Se prefiere el tamano mas grande que no pase de 1920 de ancho y que sea horizontal
+    if (estricto && !coincide(q, `${v.tags ?? ''} ${v.pageURL ?? ''}`)) continue;
     const opciones = ['large', 'medium', 'small']
       .map((k) => v.videos?.[k])
       .filter((f) => f && f.url && f.width >= 1280 && f.width <= 1920 && f.width > f.height);
     if (opciones.length) {
       const f = opciones[0];
-      return {id: `x${v.id}`, link: f.url, info: `Pixabay video ${f.width}px ${v.duration}s`, fuente: 'pixabay'};
+      return {id: `x${v.id}`, link: f.url, info: `Pixabay video ${f.width}px ${v.duration}s${estricto ? '' : ', SIN COINCIDIR'}`, fuente: 'pixabay', estricto};
     }
   }
   return null;
@@ -108,15 +134,18 @@ for (const toma of tomas) {
     ultimaBuena = buscar;
   }
   const corta = buscar.split(' ').slice(0, 2).join(' ');
+  const hayCorta = corta !== buscar;
 
-  // Orden: video Pexels, video Pixabay, foto Pexels, y lo mismo con la busqueda corta
+  // Primero solo videos que coincidan con la busqueda; si nadie tiene, se relaja
   const intentos = [
-    () => buscarVideoPexels(buscar),
-    () => buscarVideoPixabay(buscar),
-    () => buscarFotoPexels(buscar),
-    () => (corta !== buscar ? buscarVideoPexels(corta) : null),
-    () => (corta !== buscar ? buscarVideoPixabay(corta) : null),
-    () => (corta !== buscar ? buscarFotoPexels(corta) : null),
+    () => buscarVideoPexels(buscar, true),
+    () => buscarVideoPixabay(buscar, true),
+    () => (hayCorta ? buscarVideoPexels(corta, true) : null),
+    () => (hayCorta ? buscarVideoPixabay(corta, true) : null),
+    () => buscarFotoPexels(buscar, true),
+    () => buscarVideoPexels(buscar, false),
+    () => buscarVideoPixabay(buscar, false),
+    () => buscarFotoPexels(buscar, false),
   ];
 
   let elegido = null;
@@ -140,9 +169,10 @@ for (const toma of tomas) {
         await descargar(elegido.link, destino);
         cuenta[elegido.fuente]++;
       }
+      if (!elegido.estricto) cuenta.sinCoincidir++;
       usados.add(elegido.id);
       listos.push(destino);
-      console.log(`✓ ${toma.clip} ← "${buscar}" (${elegido.info})`);
+      console.log(`${elegido.estricto ? '✓' : '⚠'} ${toma.clip} ← "${buscar}" (${elegido.info})`);
       continue;
     } catch (e) {
       console.error(`  fallo guardando ${toma.clip}: ${e.message}`);
@@ -162,5 +192,6 @@ for (const [i, p] of pendientes.entries()) {
 }
 
 await fs.rm('public/fotos-tmp', {recursive: true, force: true});
-console.log(`RESUMEN: ${cuenta.pexels} de Pexels, ${cuenta.pixabay} de Pixabay, ${cuenta.fotos} fotos, ${pendientes.length} copiados`);
+console.log(`RESUMEN: ${cuenta.pexels} de Pexels, ${cuenta.pixabay} de Pixabay, ${cuenta.fotos} fotos, ${pendientes.length} copiados, ${cuenta.sinCoincidir} sin coincidir`);
+if (cuenta.sinCoincidir) console.log('REVISA las tomas marcadas con ⚠: puede que no muestren lo que dice la voz.');
 console.log('Listo.');
