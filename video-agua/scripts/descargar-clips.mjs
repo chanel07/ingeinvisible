@@ -3,10 +3,12 @@ import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 
 const KEY = process.env.PEXELS_KEY;
+const PIXABAY = process.env.PIXABAY_KEY || '';
 if (!KEY) {
   console.error('Falta la clave. Usa: PEXELS_KEY=tu_clave node scripts/descargar-clips.mjs');
   process.exit(1);
 }
+console.log(PIXABAY ? 'Fuentes: Pexels + Pixabay' : 'Fuentes: solo Pexels (no hay PIXABAY_KEY)');
 
 // Busquedas que traen plantillas de YouTube en ingles ("subscribe", "thank you for watching"...)
 const PROHIBIDAS = /subscri|thank|watching|outro|end ?screen|youtube|like button|follow us|channel|bell icon|social media/i;
@@ -20,39 +22,57 @@ const usados = new Set();
 const hechos = new Set();
 const listos = [];
 const pendientes = [];
-let nVideos = 0;
-let nFotos = 0;
+const cuenta = {pexels: 0, pixabay: 0, fotos: 0};
 let ultimaBuena = '';
 
-const pedir = async (url) => {
-  const res = await fetch(url, {headers: {Authorization: KEY}});
+const pedir = async (url, headers = {}) => {
+  const res = await fetch(url, {headers});
   if (!res.ok) {
-    console.error(`  error ${res.status} en Pexels`);
+    console.error(`  error ${res.status} en ${new URL(url).hostname}`);
     return null;
   }
   return res.json();
 };
 
-const buscarVideo = async (q) => {
-  const data = await pedir(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=15`);
+// ---------- Pexels ----------
+const buscarVideoPexels = async (q) => {
+  const data = await pedir(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=15`, {Authorization: KEY});
   for (const v of data?.videos ?? []) {
     if (usados.has(`v${v.id}`) || v.duration < 5) continue;
     const archivos = (v.video_files ?? [])
       .filter((f) => f.file_type === 'video/mp4' && f.width >= 1280 && f.width <= 1920)
       .sort((a, b) => b.width - a.width);
     if (archivos.length) {
-      return {id: `v${v.id}`, link: archivos[0].link, info: `video ${archivos[0].width}px ${v.duration}s`};
+      return {id: `v${v.id}`, link: archivos[0].link, info: `Pexels video ${archivos[0].width}px ${v.duration}s`, fuente: 'pexels'};
     }
   }
   return null;
 };
 
-const buscarFoto = async (q) => {
-  const data = await pedir(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=15`);
+const buscarFotoPexels = async (q) => {
+  const data = await pedir(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=15`, {Authorization: KEY});
   for (const p of data?.photos ?? []) {
     if (usados.has(`f${p.id}`)) continue;
     const link = p.src?.large2x || p.src?.original;
-    if (link) return {id: `f${p.id}`, link, info: 'FOTO', foto: true};
+    if (link) return {id: `f${p.id}`, link, info: 'Pexels FOTO', foto: true};
+  }
+  return null;
+};
+
+// ---------- Pixabay ----------
+const buscarVideoPixabay = async (q) => {
+  if (!PIXABAY) return null;
+  const data = await pedir(`https://pixabay.com/api/videos/?key=${PIXABAY}&q=${encodeURIComponent(q.slice(0, 100))}&per_page=20&safesearch=true`);
+  for (const v of data?.hits ?? []) {
+    if (usados.has(`x${v.id}`) || (v.duration ?? 0) < 5) continue;
+    // Se prefiere el tamano mas grande que no pase de 1920 de ancho y que sea horizontal
+    const opciones = ['large', 'medium', 'small']
+      .map((k) => v.videos?.[k])
+      .filter((f) => f && f.url && f.width >= 1280 && f.width <= 1920 && f.width > f.height);
+    if (opciones.length) {
+      const f = opciones[0];
+      return {id: `x${v.id}`, link: f.url, info: `Pixabay video ${f.width}px ${v.duration}s`, fuente: 'pixabay'};
+    }
   }
   return null;
 };
@@ -89,11 +109,14 @@ for (const toma of tomas) {
   }
   const corta = buscar.split(' ').slice(0, 2).join(' ');
 
+  // Orden: video Pexels, video Pixabay, foto Pexels, y lo mismo con la busqueda corta
   const intentos = [
-    () => buscarVideo(buscar),
-    () => buscarFoto(buscar),
-    () => (corta !== buscar ? buscarVideo(corta) : null),
-    () => (corta !== buscar ? buscarFoto(corta) : null),
+    () => buscarVideoPexels(buscar),
+    () => buscarVideoPixabay(buscar),
+    () => buscarFotoPexels(buscar),
+    () => (corta !== buscar ? buscarVideoPexels(corta) : null),
+    () => (corta !== buscar ? buscarVideoPixabay(corta) : null),
+    () => (corta !== buscar ? buscarFotoPexels(corta) : null),
   ];
 
   let elegido = null;
@@ -112,10 +135,10 @@ for (const toma of tomas) {
         const jpg = path.join('public/fotos-tmp', `${elegido.id}.jpg`);
         await descargar(elegido.link, jpg);
         fotoAVideo(jpg, destino);
-        nFotos++;
+        cuenta.fotos++;
       } else {
         await descargar(elegido.link, destino);
-        nVideos++;
+        cuenta[elegido.fuente]++;
       }
       usados.add(elegido.id);
       listos.push(destino);
@@ -130,7 +153,7 @@ for (const toma of tomas) {
 }
 
 if (pendientes.length && !listos.length) {
-  console.error('✗ No se consiguió ningún clip ni foto. Revisa la clave de Pexels o las búsquedas.');
+  console.error('✗ No se consiguió ningún clip ni foto. Revisa las claves o las búsquedas.');
   process.exit(1);
 }
 for (const [i, p] of pendientes.entries()) {
@@ -139,5 +162,5 @@ for (const [i, p] of pendientes.entries()) {
 }
 
 await fs.rm('public/fotos-tmp', {recursive: true, force: true});
-console.log(`RESUMEN: ${nVideos} videos, ${nFotos} fotos, ${pendientes.length} copiados`);
+console.log(`RESUMEN: ${cuenta.pexels} de Pexels, ${cuenta.pixabay} de Pixabay, ${cuenta.fotos} fotos, ${pendientes.length} copiados`);
 console.log('Listo.');
