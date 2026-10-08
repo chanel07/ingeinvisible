@@ -129,20 +129,20 @@ jobs:
           echo "PESO: ${MB} MB"
           ffprobe -v error -show_entries format=duration,bit_rate -of default=noprint_wrappers=1 out/retro-final.mp4
 
-      # El video no se guarda en el repo: queda para descargar en Actions durante 7 días
-      - name: Guardar video para descargar
-        uses: actions/upload-artifact@v4
-        with:
-          name: reel-soy-mailo
-          path: |
-            video-agua/out/retro-final.mp4
-            video-agua/out/descripcion.txt
-          retention-days: 7
-
-      - name: Marcar tema usado
+      - name: Subir Reel al repositorio
+        env:
+          TEMA: ${{ steps.tema.outputs.TEMA }}
         run: |
+          cd video-agua
+          cp out/descripcion.txt out/retro-descripcion.txt 2>/dev/null || true
           git config user.name "github-actions"
           git config user.email "actions@github.com"
+          git add -f out/retro-final.mp4
+          git add -f out/retro-descripcion.txt 2>/dev/null || true
+          git commit -m "Retro: ${TEMA:0:80}"
+          git pull --rebase || true
+          git push
+          cd ..
           git add temas-retro.txt
           git commit -m "Marcar tema usado (retro)" || true
           git pull --rebase || true
