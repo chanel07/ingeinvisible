@@ -1,0 +1,149 @@
+name: Generar Retro (Soy Mailo)
+
+on:
+  schedule:
+    - cron: '0 15 * * *'   # 10:00 a. m. Colombia
+  workflow_dispatch:
+    inputs:
+      tema:
+        description: 'Tema del Reel (dejar vacío para tomar de la lista)'
+        required: false
+        type: string
+
+jobs:
+  retro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: video-agua/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache de Remotion (Chromium)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/remotion
+          key: remotion-${{ runner.os }}-v1
+
+      - name: Instalar edge-tts
+        run: pip install edge-tts
+
+      - name: Instalar FFmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+
+      - name: Instalar dependencias de Remotion
+        working-directory: video-agua
+        run: npm ci
+
+      - name: Elegir tema
+        id: tema
+        working-directory: video-agua
+        env:
+          TEMA_MANUAL: ${{ inputs.tema }}
+        run: |
+          if [ -n "$TEMA_MANUAL" ]; then
+            TEMA="$TEMA_MANUAL"
+          else
+            TEMA=$(node scripts/siguiente-tema.mjs ../temas-retro.txt)
+          fi
+          TEMA=$(echo "$TEMA" | tr '\n' ' ')
+          echo "Tema elegido: $TEMA"
+          echo "TEMA=$TEMA" >> $GITHUB_OUTPUT
+
+      - name: Generar guion y plan con Gemini
+        working-directory: video-agua
+        env:
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+          TEMA: ${{ steps.tema.outputs.TEMA }}
+        run: node scripts/generar-retro.mjs
+
+      - name: Limpiar guion y generar voz
+        working-directory: video-agua
+        run: |
+          sed -i 's/#//g; s/\*//g; s/_//g; s/\[//g; s/\]//g; s/---//g' public/guion.txt
+          echo "----- GUION QUE SE VA A NARRAR -----"
+          cat public/guion.txt
+          echo "------------------------------------"
+          edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt
+
+      - name: Descargar clips
+        working-directory: video-agua
+        env:
+          PEXELS_KEY: ${{ secrets.PEXELS_KEY }}
+          PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
+        run: rm -rf public/clips && node scripts/descargar-clips.mjs
+
+      - name: Preparar clips
+        working-directory: video-agua
+        run: |
+          mkdir -p public/clips-mini
+          for f in public/clips/*.mp4; do
+            n=$(basename "$f")
+            ffmpeg -y -loglevel error -i "$f" -t 15 -vf "scale=1080:-2" -c:v libx264 -crf 22 -preset veryfast -an "public/clips-mini/$n"
+          done
+          rm -rf public/clips
+          mv public/clips-mini public/clips
+
+      - name: Sacar fotograma de respaldo
+        working-directory: video-agua
+        run: |
+          PRIMERO=$(node -e "const p=require('./public/plan.json');console.log((p.plan||p)[0].clip)" 2>/dev/null || ls public/clips | head -n1)
+          ffmpeg -y -loglevel error -ss 0.4 -i "public/clips/$PRIMERO" -frames:v 1 public/portada.jpg
+          echo "Fotograma de respaldo sacado de $PRIMERO"
+
+      - name: Renderizar Reel (marca Soy Mailo)
+        working-directory: video-agua
+        run: |
+          mkdir -p out
+          TITULO=""
+          if [ -f public/titulo.txt ]; then
+            TITULO=$(cat public/titulo.txt)
+          fi
+          echo "Título en pantalla: $TITULO"
+          export REMOTION_TITULO="$TITULO"
+          export REMOTION_MARCA="SOY|MAILO"
+          export REMOTION_CIERRE="SÍGUENOS|Para más recuerdos"
+          npx remotion render Short out/retro-final.mp4 \
+            --concurrency=2 \
+            --jpeg-quality=95 \
+            --crf=20
+
+      - name: Medir resultado
+        working-directory: video-agua
+        run: |
+          MB=$(du -m out/retro-final.mp4 | cut -f1)
+          echo "PESO: ${MB} MB"
+          ffprobe -v error -show_entries format=duration,bit_rate -of default=noprint_wrappers=1 out/retro-final.mp4
+
+      # El video no se guarda en el repo: queda para descargar en Actions durante 7 días
+      - name: Guardar video para descargar
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-soy-mailo
+          path: |
+            video-agua/out/retro-final.mp4
+            video-agua/out/descripcion.txt
+          retention-days: 7
+
+      - name: Marcar tema usado
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add temas-retro.txt
+          git commit -m "Marcar tema usado (retro)" || true
+          git pull --rebase || true
+          git push || true
