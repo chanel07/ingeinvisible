@@ -141,22 +141,20 @@ jobs:
           echo "PESO: ${MB} MB"
           ffprobe -v error -show_entries format=duration,bit_rate -of default=noprint_wrappers=1 out/short-facebook.mp4
 
-      # El video NO se guarda en el repo (para que no siga creciendo).
-      # Queda como artefacto descargable en la pestaña Actions durante 7 días.
-      - name: Guardar video para descargar
-        uses: actions/upload-artifact@v4
-        with:
-          name: short-facebook
-          path: |
-            video-agua/out/short-facebook.mp4
-            video-agua/out/metadatos.txt
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Marcar tema usado
+      - name: Subir Short al repositorio
+        env:
+          TEMA: ${{ steps.tema.outputs.TEMA }}
         run: |
+          cd video-agua
+          cp out/metadatos.txt out/facebook-metadatos.txt 2>/dev/null || true
           git config user.name "github-actions"
           git config user.email "actions@github.com"
+          git add -f out/short-facebook.mp4
+          git add -f out/facebook-metadatos.txt 2>/dev/null || true
+          git commit -m "Facebook: ${TEMA:0:80}"
+          git pull --rebase || true
+          git push
+          cd ..
           git add temas-shorts.txt
           git commit -m "Marcar tema usado (Facebook)" || true
           git pull --rebase || true
