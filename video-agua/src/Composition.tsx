@@ -21,6 +21,11 @@ const CIERRE = process.env.REMOTION_CIERRE ?? (process.env.REMOTION_MARCA ? '' :
 const TITULO = (process.env.REMOTION_TITULO ?? '').replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
 const SEGUNDOS_TITULO = 2.6;
 
+// Subtitulos tipo karaoke: la palabra que se esta diciendo se pinta de amarillo.
+// Se apaga poniendo REMOTION_KARAOKE=no en el workflow.
+const KARAOKE = (process.env.REMOTION_KARAOKE ?? 'si').toLowerCase() !== 'no';
+const PALABRAS_POR_GRUPO = 4;
+
 const AMARILLO = '#f5c400';
 const ROJO = '#ff0000';
 const OSCURO = '#0a1217';
@@ -178,6 +183,58 @@ const TituloInicio = () => {
   );
 };
 
+// Subtitulo karaoke: muestra grupos de pocas palabras y resalta la que suena.
+// El tiempo de cada palabra se reparte dentro del subtitulo segun su largo,
+// porque la voz habla a ritmo parejo.
+const SubtituloKaraoke = ({cap, t}: {cap: Caption; t: number}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const palabras = cap.text.split(/\s+/).filter(Boolean);
+  if (!palabras.length) return null;
+
+  const pesos = palabras.map((p) => p.replace(/[^\p{L}\p{N}]/gu, '').length + 2);
+  const totalPeso = pesos.reduce((a, b) => a + b, 0);
+  const dur = Math.max(0.01, cap.end - cap.start);
+  const inicios: number[] = [];
+  let acumulado = 0;
+  for (const p of pesos) {
+    inicios.push(cap.start + (dur * acumulado) / totalPeso);
+    acumulado += p;
+  }
+
+  let actual = 0;
+  for (let i = 0; i < inicios.length; i++) if (t >= inicios[i]) actual = i;
+
+  const desde = Math.floor(actual / PALABRAS_POR_GRUPO) * PALABRAS_POR_GRUPO;
+  const visibles = palabras.slice(desde, desde + PALABRAS_POR_GRUPO);
+  const pop = spring({frame: frame - Math.round(inicios[actual] * fps), fps, config: {damping: 12, stiffness: 220}});
+
+  return (
+    <div style={{position: 'absolute', bottom: '22%', left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 8%'}}>
+      <div style={{textAlign: 'center', lineHeight: 1.25, fontSize: 68, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1}}>
+        {visibles.map((p, k) => {
+          const i = desde + k;
+          const activa = i === actual;
+          return (
+            <span
+              key={i}
+              style={{
+                display: 'inline-block',
+                margin: '0 10px',
+                color: activa ? AMARILLO : '#fff',
+                transform: activa ? `scale(${1 + 0.14 * pop})` : 'none',
+                textShadow: '0 0 14px rgba(0,0,0,0.95), 0 5px 0 #000, 0 -2px 0 #000, 3px 0 0 #000, -3px 0 0 #000',
+              }}
+            >
+              {p}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // Boton rojo final estilo "suscribirse"
 const CierreCanal = () => {
   const frame = useCurrentFrame();
@@ -289,7 +346,9 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
         {MARCA_1} <span style={{color: AMARILLO}}>{MARCA_2}</span>
       </div>
 
-      {actual && (
+      {actual && KARAOKE && <SubtituloKaraoke cap={actual} t={t} />}
+
+      {actual && !KARAOKE && (
         <div style={{position: 'absolute', bottom: '22%', left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 12%'}}>
           <div style={{color: '#fff', fontSize: 58, fontWeight: 900, textAlign: 'center', lineHeight: 1.3, transform: `scale(${0.92 + 0.08 * pop})`, textShadow: '0 0 14px rgba(0,0,0,0.95), 0 4px 0 #000'}}>
             {actual.text}
