@@ -138,8 +138,13 @@ Responde SOLO con este JSON:
 // Modelos para escribir el guion; el ultimo es el mas liviano, como respaldo
 const MODELOS_GUION = ['gemini-3.6-flash', 'gemini-2.5-flash'];
 
+// Limite de palabras: si el guion se pasa, se le pide a Gemini que lo acorte
+const MAX_PALABRAS = 70;
+const contarPalabras = (g) => g.replace(/[#*_\[\]]/g, ' ').split(/\s+/).filter(Boolean).length;
+
 async function generarGuion(notas) {
-  const prompt = promptGuion(notas);
+  const base = promptGuion(notas);
+  let correccion = '';
   for (const modelo of MODELOS_GUION) {
     for (let intento = 1; intento <= 4; intento++) {
       try {
@@ -148,7 +153,7 @@ async function generarGuion(notas) {
         // Los modelos 2.5 gastan espacio "pensando" y cortan el JSON: se les apaga
         if (modelo.startsWith('gemini-2.5')) config.thinkingConfig = {thinkingBudget: 0};
         const res = await llamar(modelo, {
-          contents: [{parts: [{text: prompt}]}],
+          contents: [{parts: [{text: base + correccion}]}],
           generationConfig: config,
         });
         if (res.status === 404) {
@@ -158,6 +163,10 @@ async function generarGuion(notas) {
         if (res.status === 429) {
           const msg = (await res.text()).replace(/\s+/g, ' ').slice(0, 220);
           console.log(`  429 (límite de solicitudes): ${msg}`);
+          if (/exceeded your current quota/i.test(msg)) {
+            console.log('  Se acabó el cupo de Gemini. No tiene sentido seguir intentando hoy.');
+            return null;
+          }
           console.log('  esperando 60s...');
           await esperar(60000);
           continue;
@@ -169,11 +178,20 @@ async function generarGuion(notas) {
         }
         const texto = quitarBackticks(textoDe(await res.json()));
         const json = JSON.parse(texto);
-        if (typeof json.guion === 'string' && json.guion.trim() && Array.isArray(json.plan) && json.plan.length >= 2) {
-          console.log(`  guion escrito con ${modelo}`);
-          return json;
+        if (!(typeof json.guion === 'string' && json.guion.trim() && Array.isArray(json.plan) && json.plan.length >= 2)) {
+          console.log('  respuesta incompleta, reintento...');
+          continue;
         }
-        console.log('  respuesta incompleta, reintento...');
+        const n = contarPalabras(json.guion);
+        if (n > MAX_PALABRAS && intento < 4) {
+          console.log(`  el guion tiene ${n} palabras, es demasiado largo; pido uno más corto...`);
+          correccion = `
+
+CORRECCIÓN OBLIGATORIA: tu guion anterior tenía ${n} palabras y el máximo es ${MAX_PALABRAS - 5}. Reescríbelo más corto: conserva el gancho exacto, el mecanismo principal y un solo dato concreto; quita ejemplos de más, listas y repeticiones. Una sola idea.`;
+          continue;
+        }
+        console.log(`  guion escrito con ${modelo} (${n} palabras)`);
+        return json;
       } catch (e) {
         console.log(`  JSON inválido o cortado (${e.message}), reintento...`);
         await esperar(5000);
