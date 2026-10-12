@@ -81,18 +81,26 @@ jobs:
           echo "----- GUION QUE SE VA A NARRAR -----"
           cat public/guion.txt
           echo "------------------------------------"
-          for intento in 1 2 3 4; do
+          VOZ_OK=no
+          for intento in 1 2; do
             if edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt; then
-              echo "Voz generada en el intento $intento"
+              echo "Voz de Microsoft generada en el intento $intento"
+              VOZ_OK=si
               break
             fi
-            if [ "$intento" = "4" ]; then
-              echo "El servicio de voz de Microsoft no respondió después de 4 intentos. Vuelve a intentarlo más tarde."
-              exit 1
-            fi
-            echo "La voz falló (intento $intento), espero 30 segundos y reintento..."
-            sleep 30
+            echo "La voz de Microsoft falló (intento $intento)"
+            sleep 20
           done
+          if [ "$VOZ_OK" != "si" ]; then
+            echo "===== Usando la voz de respaldo (Piper) ====="
+            pip install -q piper-tts
+            mkdir -p voces
+            python -m piper.download_voices es_MX-ald-medium --download-dir voces
+            python -m piper -m voces/es_MX-ald-medium.onnx -i public/guion.txt -f public/voz.wav --sentence-silence 0.25
+            ffmpeg -y -loglevel error -i public/voz.wav -codec:a libmp3lame -q:a 3 public/voz.mp3
+            node scripts/srt-desde-audio.mjs
+            echo "Voz de respaldo generada"
+          fi
 
       - name: Título y descripción para YouTube
         working-directory: video-agua
