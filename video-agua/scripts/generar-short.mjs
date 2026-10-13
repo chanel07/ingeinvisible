@@ -164,8 +164,8 @@ async function generarGuion(notas) {
           const msg = (await res.text()).replace(/\s+/g, ' ').slice(0, 220);
           console.log(`  429 (límite de solicitudes): ${msg}`);
           if (/exceeded your current quota/i.test(msg)) {
-            console.log('  Se acabó el cupo de Gemini. No tiene sentido seguir intentando hoy.');
-            return null;
+            console.log(`  Se acabó el cupo de ${modelo}, paso al siguiente modelo.`);
+            break;
           }
           console.log('  esperando 60s...');
           await esperar(60000);
