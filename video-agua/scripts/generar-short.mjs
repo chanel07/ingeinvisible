@@ -22,6 +22,10 @@ const GANCHO = (() => {
 // El tema sin instrucciones, para la investigacion
 const TEMA_CORTO = TEMA.split('OBLIGATORIO')[0].trim();
 
+// La investigacion con Google gasta cupo de Gemini. Solo se hace si el tema
+// dice INVESTIGAR, porque los temas normales ya traen toda la explicacion.
+const INVESTIGAR = /\bINVESTIGAR\b/.test(TEMA) || (process.env.INVESTIGAR ?? '').toLowerCase() === 'si';
+
 // Frase con la que empieza la escena cotidiana. Se elige al azar para que no todos
 // los Shorts suenen igual. Si el productor ya pidio una en el tema, se respeta la suya.
 const APERTURAS = ['Imagina que', 'Te ha pasado que', 'Seguro has visto', 'Piensa en la última vez que', 'Seguro te ha pasado que'];
@@ -114,7 +118,7 @@ REGLAS DEL GUION:
   1. Gancho de máximo 12 palabras, hablándole al espectador de tú.${GANCHO ? ` Debe ser exactamente: ${GANCHO}` : ''}
   2. Escena cotidiana: UNA sola frase corta, de máximo 14 palabras, que ponga al espectador en una situación que seguramente ha vivido.${APERTURA_PEDIDA ? ' Usa la forma de empezar que pidió el productor.' : ` Debe empezar con: ${APERTURA}`}
   3. El mecanismo paso a paso: causa y efecto, contado con una comparación de la vida diaria.
-  4. Al menos UN dato concreto de las notas: un número, un nombre técnico o un hecho histórico.
+  4. Al menos UN dato concreto que venga en el tema o en las notas: un nombre técnico o un hecho. Si no viene ningún número en el tema o en las notas, NO inventes números.
   5. La consecuencia práctica para el espectador: qué hacer o qué evitar.
   6. Cierre: una frase COMPLETA, de al menos 10 palabras, que conecte con el gancho y deje una idea clara para recordar. Puede empezar con La próxima vez que, pero solo si queda natural; en ese caso debe decir qué va a pasar o qué va a recordar el espectador (por ejemplo: La próxima vez que veas X, recuerda que Y). Nunca dejes la frase a medias.
 - Frases cortas, máximo 18 palabras cada una. La escena y el cierre no pueden quitarle espacio a la explicación: si falta espacio, acorta la escena, nunca el mecanismo ni el dato.
@@ -145,6 +149,7 @@ const contarPalabras = (g) => g.replace(/[#*_\[\]]/g, ' ').split(/\s+/).filter(B
 async function generarGuion(notas) {
   const base = promptGuion(notas);
   let correccion = '';
+  let respaldo = null; // ultimo guion valido aunque haya salido largo
   for (const modelo of MODELOS_GUION) {
     for (let intento = 1; intento <= 4; intento++) {
       try {
@@ -183,6 +188,7 @@ async function generarGuion(notas) {
           continue;
         }
         const n = contarPalabras(json.guion);
+        respaldo = {json, n};
         if (n > MAX_PALABRAS && intento < 4) {
           console.log(`  el guion tiene ${n} palabras, es demasiado largo; pido uno más corto...`);
           correccion = `
@@ -197,6 +203,10 @@ CORRECCIÓN OBLIGATORIA: tu guion anterior tenía ${n} palabras y el máximo es 
         await esperar(5000);
       }
     }
+  }
+  if (respaldo) {
+    console.log(`AVISO: no se pudo acortar el guion; uso el último que salió (${respaldo.n} palabras). Revisa la duración antes de publicar.`);
+    return respaldo.json;
   }
   return null;
 }
@@ -263,11 +273,16 @@ function normalizarPlan(plan) {
 console.log(`Generando Short para: "${TEMA_CORTO}"`);
 console.log(APERTURA_PEDIDA ? 'Escena: la pidió el productor en el tema' : `Escena: empieza con "${APERTURA}"`);
 
-const notas = await investigar();
-if (notas) {
-  console.log('\n----- NOTAS DE INVESTIGACIÓN -----\n' + notas + '\n----------------------------------\n');
+let notas = '';
+if (INVESTIGAR) {
+  notas = await investigar();
+  if (notas) {
+    console.log('\n----- NOTAS DE INVESTIGACIÓN -----\n' + notas + '\n----------------------------------\n');
+  } else {
+    console.log('AVISO: sin investigación, sigo solo con el tema');
+  }
 } else {
-  console.log('AVISO: sin investigación, sigo solo con el tema');
+  console.log('Investigación desactivada: el tema ya trae la explicación (así se ahorra cupo de Gemini). Escribe INVESTIGAR en el tema si la necesitas.');
 }
 
 // Pausa corta para no chocar con el limite de solicitudes por minuto
