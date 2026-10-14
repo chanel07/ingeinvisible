@@ -41,6 +41,7 @@ const listos = [];
 const pendientes = [];
 const cuenta = {pexels: 0, pixabay: 0, fotos: 0, sinCoincidir: 0};
 let ultimaBuena = '';
+const TEMA_RESPALDO = 'city street';
 
 const pedir = async (url, headers = {}) => {
   const res = await fetch(url, {headers});
@@ -130,9 +131,26 @@ for (const toma of tomas) {
     const reemplazo = ultimaBuena || tomas.map((t) => String(t.buscar ?? '')).find((b) => b && !PROHIBIDAS.test(b)) || 'ocean waves';
     console.log(`⚠ ${toma.clip}: la búsqueda "${buscar}" trae plantillas, uso "${reemplazo}"`);
     buscar = reemplazo;
-  } else {
+  } else if (!/^PROPIA:/i.test(buscar)) {
     ultimaBuena = buscar;
   }
+  // Imagen o video propio: la busqueda dice PROPIA:nombre.png y el archivo esta en public/propias/
+  const propia = buscar.match(/^PROPIA:\s*(.+)$/i);
+  if (propia) {
+    const origen = path.join('public/propias', propia[1].trim());
+    try {
+      await fs.access(origen);
+      if (/\.(png|jpe?g|webp)$/i.test(origen)) fotoAVideo(origen, destino);
+      else await fs.copyFile(origen, destino);
+      listos.push(destino);
+      console.log(`✓ ${toma.clip} ← imagen propia ${propia[1].trim()}`);
+      continue;
+    } catch (e) {
+      console.log(`⚠ ${toma.clip}: no encontré public/propias/${propia[1].trim()}, busco en los bancos de video`);
+      buscar = ultimaBuena || TEMA_RESPALDO;
+    }
+  }
+
   const corta = buscar.split(' ').slice(0, 2).join(' ');
   const hayCorta = corta !== buscar;
 
