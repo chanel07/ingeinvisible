@@ -68,6 +68,7 @@ jobs:
         working-directory: video-agua
         env:
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+          GROQ_KEY: ${{ secrets.GROQ_KEY }}
           TEMA: ${{ steps.tema.outputs.TEMA }}
         run: node scripts/generar-guion.mjs
 
@@ -97,6 +98,7 @@ jobs:
         continue-on-error: true
         env:
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+          GROQ_KEY: ${{ secrets.GROQ_KEY }}
           TEMA: ${{ steps.tema.outputs.TEMA }}
           TIPO: largo
         run: node scripts/generar-metadatos.mjs
