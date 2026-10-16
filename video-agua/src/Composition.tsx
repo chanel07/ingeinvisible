@@ -294,6 +294,18 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
     if (inicios[i] > total - 0.5) inicios[i] = Math.max(inicios[i - 1] + 0.2, total - 0.5);
   }
 
+  // 4) Freno: si alguna toma queda muchisimo mas larga de lo normal (porque no se
+  // encontraron las frases del guion), el clip se congela y las demas tomas se
+  // amontonan al final. En ese caso se reparten todas las tomas de forma pareja.
+  if (plan.length > 1) {
+    const promedio = total / plan.length;
+    const limite = Math.max(8, promedio * 2.5);
+    const duraciones = inicios.map((v, i) => (i + 1 < inicios.length ? inicios[i + 1] : total) - v);
+    if (Math.max(...duraciones) > limite) {
+      for (let i = 0; i < inicios.length; i++) inicios[i] = (total * i) / plan.length;
+    }
+  }
+
   let contador = 0;
   const secciones = plan
     .map((toma, i) => (toma.seccion ? {titulo: toma.seccion, frame: Math.round(inicios[i] * fps), numero: ++contador} : null))
