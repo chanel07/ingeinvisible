@@ -125,7 +125,7 @@ jobs:
       - name: Renderizar Reel
         working-directory: video-agua
         env:
-          REMOTION_MARCA: 'HUELLA|VIVA'
+          REMOTION_MARCA: ' '
         run: |
           mkdir -p out
           npx remotion render Short out/perros-final.mp4 \
