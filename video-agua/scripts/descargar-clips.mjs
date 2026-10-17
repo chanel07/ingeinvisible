@@ -19,12 +19,20 @@ const VACIAS = new Set(['the', 'and', 'with', 'from', 'into', 'over', 'under', '
 const raiz = (w) => w.replace(/(ies)$/, 'y').replace(/(es|s)$/, '');
 const palabrasClave = (q) => [...new Set(q.toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter((w) => w.length >= 4 && !VACIAS.has(w)).map(raiz))];
 
+// Palabra obligatoria (opcional). En los videos de perros el workflow pone
+// CLIPS_OBLIGATORIA=dog|puppy, y asi ningun clip entra si no tiene un perro.
+const OBLIG_TXT = (process.env.CLIPS_OBLIGATORIA ?? '').trim();
+const OBLIGATORIA = OBLIG_TXT ? new RegExp(`\\b(${OBLIG_TXT})`, 'i') : null;
+const RESPALDO_OBLIG = (process.env.CLIPS_RESPALDO ?? 'happy dog').trim();
+if (OBLIGATORIA) console.log(`Todos los clips deben tener: ${OBLIG_TXT}`);
+
 // ¿La descripcion del video tiene las palabras de la busqueda?
 // Con 1 o 2 palabras clave deben estar todas; con mas, al menos la mitad.
 const coincide = (q, descripcion) => {
   const claves = palabrasClave(q);
-  if (!claves.length) return true;
   const texto = descripcion.toLowerCase().replace(/[^a-z]/g, ' ');
+  if (OBLIGATORIA && !OBLIGATORIA.test(texto)) return false;
+  if (!claves.length) return true;
   const hallados = claves.filter((c) => texto.includes(c)).length;
   const minimo = claves.length <= 2 ? claves.length : Math.ceil(claves.length / 2);
   return hallados >= minimo;
@@ -161,10 +169,21 @@ for (const toma of tomas) {
     () => (hayCorta ? buscarVideoPexels(corta, true) : null),
     () => (hayCorta ? buscarVideoPixabay(corta, true) : null),
     () => buscarFotoPexels(buscar, true),
-    () => buscarVideoPexels(buscar, false),
-    () => buscarVideoPixabay(buscar, false),
-    () => buscarFotoPexels(buscar, false),
   ];
+  if (OBLIGATORIA) {
+    // Nunca un clip sin la palabra obligatoria: si no hay, se usa una busqueda segura
+    intentos.push(
+      () => buscarVideoPexels(RESPALDO_OBLIG, true),
+      () => buscarVideoPixabay(RESPALDO_OBLIG, true),
+      () => buscarVideoPexels(RESPALDO_OBLIG, false),
+    );
+  } else {
+    intentos.push(
+      () => buscarVideoPexels(buscar, false),
+      () => buscarVideoPixabay(buscar, false),
+      () => buscarFotoPexels(buscar, false),
+    );
+  }
 
   let elegido = null;
   for (const intento of intentos) {
