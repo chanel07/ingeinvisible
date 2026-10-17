@@ -280,12 +280,19 @@ resultado.plan[0].buscar = primera;
 resultado.plan[0].clip = 'perro-inicio.mp4';
 console.log(`PRIMERA TOMA: "${primera}"`);
 
-// Quitar "close up" si Gemini lo puso igual.
+// Quitar "close up" si Gemini lo puso igual, y obligar a que todas las
+// busquedas tengan un perro. Sin esto, busquedas como "pay attention"
+// traen videos de billetes, porque en ingles "pay" tambien es pagar.
 resultado.plan.forEach((t, i) => {
   const b = String(t.buscar || '');
-  const limpia = b.replace(/\b(extreme\s+)?close[\s-]?up\b|\bcloseup\b|\bmacro\b/gi, '').replace(/\s+/g, ' ').trim();
+  let limpia = b.replace(/\b(extreme\s+)?close[\s-]?up\b|\bcloseup\b|\bmacro\b/gi, '').replace(/\s+/g, ' ').trim();
   if (limpia !== b) console.log(`Toma ${i + 1}: quite "close up" de "${b}"`);
-  t.buscar = limpia || 'dog playing';
+  if (!limpia) limpia = 'dog playing';
+  if (!/\b(dog|dogs|puppy|puppies|pet)\b/i.test(limpia)) {
+    console.log(`Toma ${i + 1}: la busqueda "${limpia}" no tenia perro, la cambio a "dog ${limpia}"`);
+    limpia = `dog ${limpia}`;
+  }
+  t.buscar = limpia;
 });
 
 // Duracion
