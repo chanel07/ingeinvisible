@@ -102,6 +102,7 @@ jobs:
         env:
           PEXELS_KEY: ${{ secrets.PEXELS_KEY }}
           PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
+          CLIPS_OBLIGATORIA: 'dog|dogs|puppy|puppies'
         run: rm -rf public/clips && node scripts/descargar-clips.mjs
 
       - name: Preparar clips
