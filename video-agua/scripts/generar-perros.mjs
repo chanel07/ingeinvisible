@@ -163,33 +163,65 @@ REGLA CRITICA DEL CAMPO "desde":
 
 SOLO el JSON.`;
 
+// Primero los dos Gemini; si los dos se quedan sin cupo, Groq como respaldo.
 // gemini-2.5-flash primero: el 3.6 sale saturado casi siempre y hace perder tiempo.
-const MODELOS = ['gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-1.5-flash'];
+const GROQ = (process.env.GROQ_KEY ?? '').trim();
+const MODELOS = ['gemini-2.5-flash', 'gemini-3.6-flash'];
+if (GROQ) MODELOS.push('groq:llama-3.3-70b-versatile', 'groq:openai/gpt-oss-120b');
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function pedir(modelo) {
+  if (modelo.startsWith('groq:')) {
+    return fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', Authorization: `Bearer ${GROQ}`},
+      body: JSON.stringify({
+        model: modelo.slice(5),
+        messages: [{role: 'user', content: prompt}],
+        temperature: 0.8,
+        max_tokens: 4096,
+        response_format: {type: 'json_object'},
+      }),
+    });
+  }
+  const config = {temperature: 0.9, maxOutputTokens: 16000};
+  if (modelo.startsWith('gemini-2.5')) config.thinkingConfig = {thinkingBudget: 0};
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${KEY}`;
+  return fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({contents: [{parts: [{text: prompt}]}], generationConfig: config}),
+  });
+}
 
 async function llamarGemini() {
   for (const modelo of MODELOS) {
+    const esGroq = modelo.startsWith('groq:');
     for (let intento = 1; intento <= 3; intento++) {
       console.log(`Intento ${intento}/3 con ${modelo}...`);
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${KEY}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          contents: [{parts: [{text: prompt}]}],
-          generationConfig: {temperature: 0.9, maxOutputTokens: 16000}
-        })
-      });
+      let res;
+      try {
+        res = await pedir(modelo);
+      } catch (e) {
+        console.log(`  fallo de conexión: ${e.message}`);
+        await esperar(5000);
+        continue;
+      }
       if (res.ok) {
         const data = await res.json();
-        const texto = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (texto) { console.log(`Respuesta de ${modelo}`); return texto; }
+        const texto = esGroq
+          ? data?.choices?.[0]?.message?.content
+          : (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('');
+        if (texto && texto.trim()) { console.log(`Respuesta de ${modelo}`); return texto; }
+        console.log('  respuesta vacía, reintento...');
+        continue;
       }
       const status = res.status;
-      if (status === 404) { console.log(`${modelo} no existe`); break; }
+      const msg = (await res.text()).replace(/\s+/g, ' ').slice(0, 200);
+      if (status === 404 || (esGroq && status === 400)) { console.log(`${modelo} no disponible, paso al siguiente`); break; }
+      if (status === 429 && (/exceeded your current quota/i.test(msg) || esGroq)) { console.log(`Se acabó el cupo de ${modelo}, paso al siguiente modelo.`); break; }
       if (status === 503 || status === 429) { console.log(`${modelo} saturado, esperando 30s...`); await esperar(30000); continue; }
-      const err = await res.text();
-      console.error(`Error ${status}:`, err.substring(0, 200));
+      console.error(`Error ${status}:`, msg);
       break;
     }
   }
