@@ -19,6 +19,11 @@ const VACIAS = new Set(['the', 'and', 'with', 'from', 'into', 'over', 'under', '
 const raiz = (w) => w.replace(/(ies)$/, 'y').replace(/(es|s)$/, '');
 const palabrasClave = (q) => [...new Set(q.toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter((w) => w.length >= 4 && !VACIAS.has(w)).map(raiz))];
 
+// Videos raros que no queremos: hechos con IA, animados, de fantasia o disfrazados.
+// Los bancos gratuitos tienen cada vez mas de estos y se ven falsos en un video real.
+const RAROS = /\b(ai|a\.i\.|generated|artificial intelligence|anthropomorphic|humanoid|cartoon|animation|animated|3d|render|rendering|cgi|fantasy|surreal|costume|mask|illustration|digital art|midjourney|stable diffusion)\b/i;
+const esRaro = (descripcion) => RAROS.test(String(descripcion).toLowerCase().replace(/[-_/]+/g, ' '));
+
 // Palabra obligatoria (opcional). En los videos de perros el workflow pone
 // CLIPS_OBLIGATORIA=dog|puppy, y asi ningun clip entra si no tiene un perro.
 const OBLIG_TXT = (process.env.CLIPS_OBLIGATORIA ?? '').trim();
@@ -72,6 +77,7 @@ const buscarVideoPexels = async (q, estricto) => {
   const data = await pedirUnaVez(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=20`, {Authorization: KEY});
   for (const v of data?.videos ?? []) {
     if (usados.has(`v${v.id}`) || v.duration < 5) continue;
+    if (esRaro(v.url ?? '')) continue;
     if (estricto && !coincide(q, v.url ?? '')) continue;
     const archivos = (v.video_files ?? [])
       .filter((f) => f.file_type === 'video/mp4' && f.width >= 1280 && f.width <= 1920)
@@ -87,6 +93,7 @@ const buscarFotoPexels = async (q, estricto) => {
   const data = await pedirUnaVez(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=20`, {Authorization: KEY});
   for (const p of data?.photos ?? []) {
     if (usados.has(`f${p.id}`)) continue;
+    if (esRaro(`${p.alt ?? ''} ${p.url ?? ''}`)) continue;
     if (estricto && !coincide(q, `${p.alt ?? ''} ${p.url ?? ''}`)) continue;
     const link = p.src?.large2x || p.src?.original;
     if (link) return {id: `f${p.id}`, link, info: `Pexels FOTO${estricto ? '' : ', SIN COINCIDIR'}`, foto: true, estricto};
@@ -100,6 +107,7 @@ const buscarVideoPixabay = async (q, estricto) => {
   const data = await pedirUnaVez(`https://pixabay.com/api/videos/?key=${PIXABAY}&q=${encodeURIComponent(q.slice(0, 100))}&per_page=20&safesearch=true`);
   for (const v of data?.hits ?? []) {
     if (usados.has(`x${v.id}`) || (v.duration ?? 0) < 5) continue;
+    if (esRaro(`${v.tags ?? ''} ${v.pageURL ?? ''}`)) continue;
     if (estricto && !coincide(q, `${v.tags ?? ''} ${v.pageURL ?? ''}`)) continue;
     const opciones = ['large', 'medium', 'small']
       .map((k) => v.videos?.[k])
