@@ -167,7 +167,7 @@ SOLO el JSON.`;
 // gemini-2.5-flash primero: el 3.6 sale saturado casi siempre y hace perder tiempo.
 const GROQ = (process.env.GROQ_KEY ?? '').trim();
 const MODELOS = ['gemini-2.5-flash', 'gemini-3.6-flash'];
-if (GROQ) MODELOS.push('groq:llama-3.3-70b-versatile', 'groq:openai/gpt-oss-120b');
+if (GROQ) MODELOS.push('groq:openai/gpt-oss-120b', 'groq:qwen/qwen3.6-27b', 'groq:openai/gpt-oss-20b');
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function pedir(modelo) {
@@ -179,7 +179,8 @@ async function pedir(modelo) {
         model: modelo.slice(5),
         messages: [{role: 'user', content: prompt}],
         temperature: 0.8,
-        max_tokens: 4096,
+        max_tokens: 8192,
+        ...(modelo.includes('gpt-oss') ? {reasoning_effort: 'low'} : {}),
         response_format: {type: 'json_object'},
       }),
     });
@@ -218,7 +219,7 @@ async function llamarGemini() {
       }
       const status = res.status;
       const msg = (await res.text()).replace(/\s+/g, ' ').slice(0, 200);
-      if (status === 404 || (esGroq && status === 400)) { console.log(`${modelo} no disponible, paso al siguiente`); break; }
+      if (status === 404 || (esGroq && status === 400)) { console.log(`${modelo} no disponible (${status}): ${msg}`); break; }
       if (status === 429 && (/exceeded your current quota/i.test(msg) || esGroq)) { console.log(`Se acabó el cupo de ${modelo}, paso al siguiente modelo.`); break; }
       if (status === 503 || status === 429) { console.log(`${modelo} saturado, esperando 30s...`); await esperar(30000); continue; }
       console.error(`Error ${status}:`, msg);
