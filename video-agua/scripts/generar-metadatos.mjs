@@ -1,10 +1,11 @@
 import fs from 'node:fs/promises';
 
 const KEY = process.env.GEMINI_KEY;
+const GROQ = (process.env.GROQ_KEY ?? '').trim();
 const TEMA = process.env.TEMA ?? '';
 const TIPO = process.env.TIPO === 'largo' ? 'largo' : 'short';
 
-if (!KEY) {
+if (!KEY && !GROQ) {
   console.error('Falta GEMINI_KEY');
   process.exit(0);
 }
@@ -55,27 +56,58 @@ REGLAS DE LAS ETIQUETAS:
 Responde SOLO con este JSON:
 {"titulo": "...", "descripcion": "...", "hashtags": ["#...", "#..."], "etiquetas": ["...", "..."]}`;
 
-const MODELOS = ['gemini-3.6-flash', 'gemini-2.5-flash'];
+// Primero los dos Gemini; si los dos se quedan sin cupo, Groq como respaldo
+const MODELOS = KEY ? ['gemini-3.6-flash', 'gemini-2.5-flash'] : [];
+if (GROQ) MODELOS.push('groq:openai/gpt-oss-120b', 'groq:qwen/qwen3.6-27b', 'groq:openai/gpt-oss-20b');
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const limpiar = (t) => t.replace(/```json|```/g, '').trim();
 
+async function pedir(modelo) {
+  if (modelo.startsWith('groq:')) {
+    return fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', Authorization: `Bearer ${GROQ}`},
+      body: JSON.stringify({
+        model: modelo.slice(5),
+        messages: [{role: 'user', content: prompt}],
+        temperature: 0.6,
+        max_tokens: 8192,
+        ...(modelo.includes('gpt-oss') ? {reasoning_effort: 'low'} : {}),
+        response_format: {type: 'json_object'},
+      }),
+    });
+  }
+  const config = {temperature: 0.6, maxOutputTokens: 8192, responseMimeType: 'application/json'};
+  if (modelo.startsWith('gemini-2.5')) config.thinkingConfig = {thinkingBudget: 0};
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${KEY}`;
+  return fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({contents: [{parts: [{text: prompt}]}], generationConfig: config}),
+  });
+}
+
 async function pedirMetadatos() {
   for (const modelo of MODELOS) {
+    const esGroq = modelo.startsWith('groq:');
     for (let intento = 1; intento <= 3; intento++) {
       console.log(`Intento ${intento}/3 con ${modelo}...`);
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${KEY}`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            contents: [{parts: [{text: prompt}]}],
-            generationConfig: {temperature: 0.6, maxOutputTokens: 8192, responseMimeType: 'application/json'},
-          }),
-        });
-        if (res.status === 404) {
-          console.log(`  ${modelo} no disponible, paso al siguiente`);
+        const res = await pedir(modelo);
+        if (res.status === 404 || (esGroq && res.status === 400)) {
+          const det = (await res.text()).replace(/\s+/g, ' ').slice(0, 200);
+          console.log(`  ${modelo} no disponible (${res.status}): ${det}`);
           break;
+        }
+        if (res.status === 429) {
+          const msg = (await res.text()).replace(/\s+/g, ' ').slice(0, 200);
+          if (/exceeded your current quota/i.test(msg) || esGroq) {
+            console.log(`  Se acabó el cupo de ${modelo}, paso al siguiente modelo.`);
+            break;
+          }
+          console.log('  límite por minuto, esperando 20s...');
+          await esperar(20000);
+          continue;
         }
         if (!res.ok) {
           console.log(`  respuesta ${res.status}, esperando 20s...`);
@@ -83,9 +115,14 @@ async function pedirMetadatos() {
           continue;
         }
         const data = await res.json();
-        const texto = (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('');
+        const texto = esGroq
+          ? data?.choices?.[0]?.message?.content ?? ''
+          : (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('');
         const json = JSON.parse(limpiar(texto));
-        if (json.titulo && json.descripcion && Array.isArray(json.hashtags)) return json;
+        if (json.titulo && json.descripcion && Array.isArray(json.hashtags)) {
+          console.log(`  listo con ${modelo}`);
+          return json;
+        }
         console.log('  respuesta incompleta, reintento...');
       } catch (e) {
         console.log(`  fallo: ${e.message}, reintento...`);
