@@ -15,11 +15,12 @@ on:
         options:
           - largo
           - corto
+          - extendido
 
 jobs:
   perros:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: write
 
@@ -142,6 +143,7 @@ jobs:
           ffprobe -v error -show_entries format=duration,bit_rate -of default=noprint_wrappers=1 out/perros-final.mp4
 
       - name: Subir Reel al repositorio
+        if: inputs.duracion != 'extendido'
         env:
           DURACION: ${{ inputs.duracion }}
         run: |
@@ -151,7 +153,20 @@ jobs:
           git add -f out/perros-final.mp4
           git commit -m "Perros ($DURACION)"
           git push
-          cd ..
+
+      - name: Guardar video extendido para descargar
+        if: inputs.duracion == 'extendido'
+        uses: actions/upload-artifact@v4
+        with:
+          name: perros-extendido-${{ github.run_number }}
+          path: video-agua/out/perros-final.mp4
+          retention-days: 7
+
+      - name: Marcar tema usado
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git pull --rebase || true
           git add temas-perros.txt
           git commit -m "Marcar tema usado" || true
           git push || true
