@@ -2,7 +2,7 @@
 [x] Por qué los rascacielos no se caen con el viento
 [x] Cómo sabe un semáforo cuándo cambiar
 [x] Qué hay debajo de la calle que pisas
-Cómo funciona una nevera explicado sencillo
+[x] Cómo funciona una nevera explicado sencillo
 Por qué los aviones pueden volar siendo tan pesados
 Cómo llega la electricidad desde la planta hasta tu enchufe
 Cómo funciona el alcantarillado de una ciudad
