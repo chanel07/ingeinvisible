@@ -32,6 +32,18 @@ if (!TEMA) {
   console.log(`Sin tema escrito, elijo una situacion al azar: "${TEMA}"`);
 }
 
+// Frases exactas que el tema puede pedir: la primera y la pregunta final
+const GANCHO = (() => {
+  const m = TEMA.match(/primera frase del guion debe ser exactamente:\s*(.+?)(?=\s+OBLIGATORIO|$)/i);
+  return m ? m[1].trim() : '';
+})();
+const PREGUNTA = (() => {
+  const m = TEMA.match(/pregunta final:\s*(¿?[^?]+\?)/i);
+  if (!m) return '';
+  const q = m[1].trim();
+  return q.startsWith('¿') ? q.charAt(0) + q.charAt(1).toUpperCase() + q.slice(2) : '¿' + q.charAt(0).toUpperCase() + q.slice(1);
+})();
+
 const CONFIG = {
   segundos: '15 a 25',
   palabras: '40 y 60',
@@ -54,7 +66,14 @@ const PRIMERAS = [
 
 const prompt = `Eres el guionista de humor de una pagina de perros en Santa Marta, Colombia. Creas Reels verticales de ${CONFIG.segundos} segundos donde EL PERRO HABLA EN PRIMERA PERSONA y cuenta, con drama exagerado, una situacion que todos los duenos han vivido.
 
-SITUACION: ${TEMA}
+SITUACION E INSTRUCCIONES DEL PRODUCTOR:
+${TEMA}
+
+PRIORIDAD: si la SITUACION trae un formato (por ejemplo un diario con el reloj que avanza: Segundo uno, Minuto diez, Hora uno), momentos concretos, frases exactas o reglas OBLIGATORIO, SIGUELOS al pie de la letra, por encima de las reglas generales de abajo. Usa los detalles concretos que trae la SITUACION, no los cambies por otros mas genericos.
+${GANCHO ? `La PRIMERA FRASE del guion debe ser exactamente: ${GANCHO}` : ''}
+${PREGUNTA ? `La ULTIMA FRASE del guion debe ser exactamente: ${PREGUNTA}` : ''}
+
+ORTOGRAFIA: el guion se escribe en espanol con ortografia perfecta, con TODAS las tildes (está, también, volvió, traición, mañana) y con los signos de apertura ¿ y ¡. Aunque estas instrucciones no tengan tildes, el guion SI las lleva.
 
 ESTILO:
 - El narrador es el perro. Habla de "mi humano", nunca de "el dueno".
@@ -77,7 +96,7 @@ PROHIBIDO:
 - Decir suscribete, sigueme o dale like.
 
 Ejemplo de tono (NO lo copies, es solo para que entiendas el estilo):
-"Mi humano dijo que volvia en cinco minutos. Han pasado tres horas. Ya revise la puerta veinte veces. Ya le aulle a la ventana. Ya hable con el gato del vecino. Mañana busco abogado. ¿Tu perro tambien te hace este drama cuando sales?"
+"Mi humano dijo que volvía en cinco minutos. Han pasado tres horas. Ya revisé la puerta veinte veces. Ya le aullé a la ventana. Ya hablé con el gato del vecino. Mañana busco abogado. ¿Tu perro también te hace este drama cuando sales?"
 
 LARGO: entre ${CONFIG.palabras} palabras. Ni menos ni mas.
 Espanol neutro latinoamericano, cercano: "carro" no "coche". NO uses punto y coma.
@@ -97,7 +116,7 @@ REGLAS DEL PLAN:
 - Cada toma usa un archivo de clip DISTINTO y una busqueda DISTINTA.
 - buscar: en INGLES, generico y visual, SIEMPRE con perros, que muestre lo que dice esa parte (por ejemplo "dog waiting at door", "dog looking out window", "sad dog lying floor", "dog begging food", "excited dog jumping").
 - PROHIBIDO usar "close up", "closeup", "macro" o "extreme" en las busquedas.
-- etiquetas: maximo 1 por toma, maximo 3 palabras, solo en 2 o 3 tomas. Que sean graciosas, por ejemplo "3 HORAS DESPUES", "MODO DRAMA".
+- etiquetas: maximo 1 por toma, maximo 3 palabras. Si el guion usa el reloj (Segundo uno, Minuto diez...), pon una etiqueta en cada momento del reloj, por ejemplo "SEGUNDO 1", "MINUTO 10", "HORA 1". Si no, solo en 2 o 3 tomas, graciosas, por ejemplo "MODO DRAMA".
 - clip: nombre en espanol con guiones .mp4, SIN tildes y SIN la letra ñ (usa n).
 
 REGLA CRITICA DEL CAMPO "desde":
@@ -206,6 +225,25 @@ if (!resultado && respaldo) {
 if (!resultado) { console.error('No se obtuvo un guion valido despues de 4 vueltas'); process.exit(1); }
 
 const quitarTildes = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+// Si la IA no respeto la primera frase o la pregunta final exactas, se ponen a mano
+const sinSignos = (s) => quitarTildes(s).replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+let guion = String(resultado.guion).replace(/\s+/g, ' ').trim();
+if (GANCHO && !sinSignos(guion).startsWith(sinSignos(GANCHO).slice(0, 25))) {
+  console.log('AVISO: la IA no respeto la primera frase, la pongo yo');
+  const resto = guion.replace(/^[^.?!]*[.?!]\s*/, '');
+  guion = `${/[.?!]$/.test(GANCHO) ? GANCHO : GANCHO + '.'} ${resto}`.trim();
+}
+if (PREGUNTA) {
+  const frasesG = guion.match(/[^.?!]+[.?!]+/g) ?? [guion];
+  const ultimaG = frasesG[frasesG.length - 1];
+  if (sinSignos(ultimaG) !== sinSignos(PREGUNTA)) {
+    console.log('AVISO: la pregunta final no quedo igual o quedo cortada, la pongo yo');
+    const cuerpo = /\?\s*$/.test(ultimaG) ? frasesG.slice(0, -1).join(' ') : guion;
+    guion = `${cuerpo.trim()} ${PREGUNTA}`.trim();
+  }
+}
+resultado.guion = guion.replace(/\s+/g, ' ').trim();
 
 // Nombres de clip seguros: sin tildes, sin ñ, sin espacios raros.
 const nombreSeguro = (s, i) => {
