@@ -2,7 +2,10 @@ import fs from 'node:fs/promises';
 
 const KEY = process.env.GEMINI_KEY;
 const TEMA = process.env.TEMA;
-const DURACION = (process.env.DURACION || 'largo').toLowerCase() === 'corto' ? 'corto' : 'largo';
+const DURACION = (() => {
+  const d = (process.env.DURACION || 'largo').toLowerCase();
+  return ['corto', 'largo', 'extendido'].includes(d) ? d : 'largo';
+})();
 
 if (!KEY || !TEMA) {
   console.error('Faltan GEMINI_KEY o TEMA');
@@ -41,6 +44,32 @@ Cada 2 o 3 frases mete una mini sorpresa o un "pero" que cambie la direccion.
 Penultima frase: el dato mas fuerte, el que prometiste en la segunda frase.
 Ultima frase: retoma la idea de la primera, ya con la respuesta. Corta y redonda.`,
     formatoGuion: '90-110 palabras. Frase 1 = gancho. Frase 2 = bucle abierto. Desarrollo. Penultima = revelacion. Ultima = cierre.',
+    duracionToma: '2 o 3 segundos',
+    maxSegToma: 3.5,
+  },
+  extendido: {
+    segundos: '160 a 190',
+    palabras: '400 y 460',
+    minPalabras: 360,
+    maxPalabras: 500,
+    tomas: 'entre 34 y 40 tomas. NO menos de 32',
+    minTomas: 30,
+    etiquetas: 'en 8 a 10 tomas',
+    maxGancho: 12,
+    duracionToma: '4 a 6 segundos',
+    maxSegToma: 7,
+    estructura: `VIDEO EXTENDIDO DE UNOS 3 MINUTOS, dividido en PARTES.
+
+1. EL GANCHO: la primera frase, que atrape en el primer segundo.
+
+2. LA PROMESA: una frase que diga lo que el espectador va a saber al final, para que se quede.
+
+3. LAS PARTES: si el TEMA trae partes, siguelas en ese mismo orden, sin saltarte ninguna. Cada parte empieza con una frase de transicion natural (por ejemplo "Y aqui viene lo mas importante") y explica UNA sola idea, con ejemplos cotidianos de la casa y la calle. Frases cortas, como si le hablaras a un amigo.
+
+4. EL CIERRE: retoma la idea de la primera frase, ya con la respuesta, y termina con un mensaje claro y positivo.
+
+NO hagas una parte de introduccion: arranca directo con el gancho.`,
+    formatoGuion: '400-460 palabras. Gancho. Promesa. Las partes del tema en orden. Cierre.',
   },
   corto: {
     segundos: '10 a 13',
@@ -63,6 +92,8 @@ Si el TEMA trae muchos datos, usa SOLO el mas fuerte. No intentes decirlo todo.
 NO uses bucle abierto ni "te lo digo al final": no hay tiempo para eso.
 CUENTA LAS PALABRAS antes de responder. Si pasas de 34, recorta.`,
     formatoGuion: '26-34 palabras. Frase 1 = gancho. Luego el dato. Ultima = remate que conecta con la primera.',
+    duracionToma: '2 o 3 segundos',
+    maxSegToma: 3.5,
   },
 }[DURACION];
 
@@ -83,7 +114,7 @@ const PRIMERAS = [
   'puppy playing with owner',
 ];
 
-const prompt = `Eres el guionista de una pagina de rescate de mascotas en Santa Marta, Colombia. Creas Reels verticales de ${CONFIG.segundos} segundos sobre perros.
+const prompt = `Eres el guionista de una pagina de rescate de mascotas en Santa Marta, Colombia. Creas ${DURACION === 'extendido' ? 'videos verticales de unos 3 minutos' : `Reels verticales de ${CONFIG.segundos} segundos`} sobre perros.
 
 TEMA: ${TEMA}
 
@@ -146,7 +177,7 @@ Responde SOLO con JSON, sin backticks:
 
 REGLAS DEL PLAN:
 - plan: ${CONFIG.tomas}.
-- Cada toma dura 2 o 3 segundos. Cortes rapidos, nunca una toma larga.
+- Cada toma dura ${CONFIG.duracionToma}. Cortes rapidos, nunca una toma larga.${DURACION === 'extendido' ? '\n- seccion: en la PRIMERA toma de cada parte del guion, agrega el campo "seccion" con el nombre de la parte en 2 o 3 palabras, con ortografia perfecta y tildes (por ejemplo "Lo que siente", "Señales de pánico"). En las demas tomas, omite el campo. NUNCA una seccion llamada Introduccion.' : ''}
 - Cada toma usa un archivo de clip DISTINTO y una busqueda DISTINTA. No repitas.
 - buscar: en INGLES, generico y visual, siempre con perros. Planos medios o completos donde se vea el perro entero o medio cuerpo.
 - PROHIBIDO usar "close up", "closeup", "macro" o "extreme" en las busquedas. Al recortar a vertical quedan ojos o narices gigantes que se ven feos.
@@ -307,7 +338,7 @@ if (palabras > CONFIG.maxPalabras) console.warn('AVISO: el guion salio largo.');
 const tomas = resultado.plan.length;
 console.log(`TOMAS: ${tomas} (aprox ${(segundos / tomas).toFixed(1)}s por toma)`);
 if (tomas < CONFIG.minTomas) console.warn('AVISO: pocas tomas, el ritmo va a ser lento.');
-if (segundos / tomas > 3.5) console.warn('AVISO: tomas muy largas, la gente se aburre con stock.');
+if (segundos / tomas > CONFIG.maxSegToma) console.warn('AVISO: tomas muy largas, la gente se aburre con stock.');
 
 const clips = resultado.plan.map((t) => t.clip);
 const unicos = new Set(clips).size;
