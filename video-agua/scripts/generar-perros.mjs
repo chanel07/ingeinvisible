@@ -317,6 +317,8 @@ console.log(`PRIMERA TOMA: "${primera}"`);
 // traen videos de billetes, porque en ingles "pay" tambien es pagar.
 resultado.plan.forEach((t, i) => {
   const b = String(t.buscar || '');
+  // Las imagenes propias (PROPIA:nombre.png) se dejan tal cual
+  if (/^PROPIA:/i.test(b.trim())) { t.buscar = b.trim(); return; }
   let limpia = b.replace(/\b(extreme\s+)?close[\s-]?up\b|\bcloseup\b|\bmacro\b/gi, '').replace(/\s+/g, ' ').trim();
   if (limpia !== b) console.log(`Toma ${i + 1}: quite "close up" de "${b}"`);
   if (!limpia) limpia = 'dog playing';
