@@ -6,7 +6,7 @@
 [x] Soplar el cartucho del Nintendo: funcionaba o no
 [x] Juegos de la calle que ya nadie juega
 [x] El trompo: el juguete que todos querían dominar
-Las canicas y sus reglas que cada barrio inventaba
+[x] Las canicas y sus reglas que cada barrio inventaba
 Así era la tienda del barrio antes
 Dulces de antes que ya no venden
 Con 500 pesos comprabas todo esto
