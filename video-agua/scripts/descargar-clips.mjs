@@ -49,6 +49,31 @@ await fs.mkdir('public/clips', {recursive: true});
 await fs.mkdir('public/fotos-tmp', {recursive: true});
 
 const usados = new Set();
+
+// Historial de clips usados en videos anteriores, para no repetirlos.
+// Se guarda en clips-usados.json y el workflow lo sube al repo.
+const HISTORIAL = process.env.CLIPS_HISTORIAL || 'clips-usados.json';
+let historial = [];
+try {
+  historial = JSON.parse(await fs.readFile(HISTORIAL, 'utf8'));
+} catch {
+  historial = [];
+}
+const vistos = new Set(historial);
+const nuevos = [];
+let ignorarHistorial = false;
+console.log(`Historial: ${vistos.size} clips ya usados en videos anteriores`);
+const yaUsado = (id) => usados.has(id) || (!ignorarHistorial && vistos.has(id));
+
+// Mezcla los primeros resultados para no elegir siempre el mismo clip
+const mezclar = (lista) => {
+  const arriba = lista.slice(0, 20);
+  for (let i = arriba.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arriba[i], arriba[j]] = [arriba[j], arriba[i]];
+  }
+  return [...arriba, ...lista.slice(20)];
+};
 const hechos = new Set();
 const listos = [];
 const pendientes = [];
@@ -74,9 +99,9 @@ const pedirUnaVez = async (url, headers) => {
 
 // ---------- Pexels ----------
 const buscarVideoPexels = async (q, estricto) => {
-  const data = await pedirUnaVez(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=20`, {Authorization: KEY});
-  for (const v of data?.videos ?? []) {
-    if (usados.has(`v${v.id}`) || v.duration < 5) continue;
+  const data = await pedirUnaVez(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=40`, {Authorization: KEY});
+  for (const v of mezclar(data?.videos ?? [])) {
+    if (yaUsado(`v${v.id}`) || v.duration < 5) continue;
     if (esRaro(v.url ?? '')) continue;
     if (estricto && !coincide(q, v.url ?? '')) continue;
     const archivos = (v.video_files ?? [])
@@ -90,9 +115,9 @@ const buscarVideoPexels = async (q, estricto) => {
 };
 
 const buscarFotoPexels = async (q, estricto) => {
-  const data = await pedirUnaVez(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=20`, {Authorization: KEY});
-  for (const p of data?.photos ?? []) {
-    if (usados.has(`f${p.id}`)) continue;
+  const data = await pedirUnaVez(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=40`, {Authorization: KEY});
+  for (const p of mezclar(data?.photos ?? [])) {
+    if (yaUsado(`f${p.id}`)) continue;
     if (esRaro(`${p.alt ?? ''} ${p.url ?? ''}`)) continue;
     if (estricto && !coincide(q, `${p.alt ?? ''} ${p.url ?? ''}`)) continue;
     const link = p.src?.large2x || p.src?.original;
@@ -104,9 +129,9 @@ const buscarFotoPexels = async (q, estricto) => {
 // ---------- Pixabay ----------
 const buscarVideoPixabay = async (q, estricto) => {
   if (!PIXABAY) return null;
-  const data = await pedirUnaVez(`https://pixabay.com/api/videos/?key=${PIXABAY}&q=${encodeURIComponent(q.slice(0, 100))}&per_page=20&safesearch=true`);
-  for (const v of data?.hits ?? []) {
-    if (usados.has(`x${v.id}`) || (v.duration ?? 0) < 5) continue;
+  const data = await pedirUnaVez(`https://pixabay.com/api/videos/?key=${PIXABAY}&q=${encodeURIComponent(q.slice(0, 100))}&per_page=40&safesearch=true`);
+  for (const v of mezclar(data?.hits ?? [])) {
+    if (yaUsado(`x${v.id}`) || (v.duration ?? 0) < 5) continue;
     if (esRaro(`${v.tags ?? ''} ${v.pageURL ?? ''}`)) continue;
     if (estricto && !coincide(q, `${v.tags ?? ''} ${v.pageURL ?? ''}`)) continue;
     const opciones = ['large', 'medium', 'small']
@@ -193,15 +218,21 @@ for (const toma of tomas) {
     );
   }
 
+  // Primero sin repetir clips de videos anteriores; si no hay, se permiten
   let elegido = null;
-  for (const intento of intentos) {
-    try {
-      elegido = await intento();
-    } catch (e) {
-      console.error(`  fallo buscando: ${e.message}`);
+  for (const pase of [false, true]) {
+    ignorarHistorial = pase;
+    for (const intento of intentos) {
+      try {
+        elegido = await intento();
+      } catch (e) {
+        console.error(`  fallo buscando: ${e.message}`);
+      }
+      if (elegido) break;
     }
     if (elegido) break;
   }
+  ignorarHistorial = false;
 
   if (elegido) {
     try {
@@ -216,6 +247,7 @@ for (const toma of tomas) {
       }
       if (!elegido.estricto) cuenta.sinCoincidir++;
       usados.add(elegido.id);
+      nuevos.push(elegido.id);
       listos.push(destino);
       console.log(`${elegido.estricto ? '✓' : '⚠'} ${toma.clip} ← "${buscar}" (${elegido.info})`);
       continue;
@@ -237,6 +269,9 @@ for (const [i, p] of pendientes.entries()) {
 }
 
 await fs.rm('public/fotos-tmp', {recursive: true, force: true});
+historial = [...new Set([...historial, ...nuevos])].slice(-3000);
+await fs.writeFile(HISTORIAL, JSON.stringify(historial), 'utf8');
+console.log(`Historial actualizado: ${nuevos.length} clips nuevos, ${historial.length} en total`);
 console.log(`RESUMEN: ${cuenta.pexels} de Pexels, ${cuenta.pixabay} de Pixabay, ${cuenta.fotos} fotos, ${pendientes.length} copiados, ${cuenta.sinCoincidir} sin coincidir`);
 if (cuenta.sinCoincidir) console.log('REVISA las tomas marcadas con ⚠: puede que no muestren lo que dice la voz.');
 console.log('Listo.');
