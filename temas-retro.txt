@@ -8,7 +8,7 @@
 [x] El trompo: el juguete que todos querían dominar
 [x] Las canicas y sus reglas que cada barrio inventaba
 [x] Así era la tienda del barrio antes
-Dulces de antes que ya no venden
+[x] Dulces de antes que ya no venden
 Con 500 pesos comprabas todo esto
 Así era ver televisión antes del control remoto
 El Tamagotchi: la mascota que se te moría en el bolsillo
