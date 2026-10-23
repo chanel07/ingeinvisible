@@ -133,10 +133,24 @@ const TomaVideo = ({toma, indice, inicio, fin, captions}: {toma: Toma; indice: n
 
 const TarjetaSeccion = ({numero, titulo}: {numero: number; titulo: string}) => {
   const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
+  const {fps, width, height} = useVideoConfig();
   const entra = spring({frame, fps, config: {damping: 200}});
   const sale = interpolate(frame, [2.4 * fps, 3 * fps], [1, 0], fijo);
   const barra = interpolate(frame, [5, 25], [0, 1], fijo);
+
+  // En videos verticales la tarjeta va centrada, mas pequena y sin salirse de la pantalla
+  if (height > width) {
+    return (
+      <AbsoluteFill style={{background: `rgba(10,18,23,${0.6 * sale})`, justifyContent: 'center', alignItems: 'center', padding: '0 8%', opacity: sale}}>
+        <div style={{textAlign: 'center', transform: `translateY(${(1 - entra) * 60}px)`, opacity: entra}}>
+          <div style={{color: AMARILLO, fontSize: 110, fontWeight: 900, lineHeight: 1}}>{dosDigitos(numero)}</div>
+          <div style={{width: 360 * barra, height: 10, background: AMARILLO, margin: '24px auto'}} />
+          <div style={{color: '#fff', fontSize: titulo.length > 16 ? 70 : 84, fontWeight: 900, lineHeight: 1.1, textTransform: 'uppercase', textShadow: '0 6px 30px rgba(0,0,0,0.8)'}}>{titulo}</div>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
   return (
     <AbsoluteFill style={{background: `rgba(10,18,23,${0.6 * sale})`, justifyContent: 'center', paddingLeft: 140, opacity: sale}}>
       <div style={{transform: `translateX(${(1 - entra) * -220}px)`}}>
@@ -308,7 +322,9 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
 
   let contador = 0;
   const secciones = plan
-    .map((toma, i) => (toma.seccion ? {titulo: toma.seccion, frame: Math.round(inicios[i] * fps), numero: ++contador} : null))
+    // La primera tarjeta nunca sale en el primer segundo: asi el inicio del video
+    // (que Facebook y YouTube usan como portada) muestra el clip limpio
+    .map((toma, i) => (toma.seccion ? {titulo: toma.seccion, frame: Math.max(Math.round(inicios[i] * fps), Math.round(1.2 * fps)), numero: ++contador} : null))
     .filter((s): s is {titulo: string; frame: number; numero: number} => s !== null);
 
   const actual = captions.find((c) => t >= c.start && t < c.end);
