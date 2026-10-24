@@ -24,6 +24,11 @@ const SEGUNDOS_TITULO = 2.6;
 // Subtitulos tipo karaoke: la palabra que se esta diciendo se pinta de amarillo.
 // Se apaga poniendo REMOTION_KARAOKE=no en el workflow.
 const KARAOKE = (process.env.REMOTION_KARAOKE ?? 'si').toLowerCase() !== 'no';
+
+// Modo limpio para Facebook: sin barra de progreso, sin cuadricula, sin marca y
+// sin el puntico de las etiquetas. Facebook baja el alcance cuando detecta cosas
+// superpuestas que parecen marcas de agua. Se activa con REMOTION_LIMPIO=si.
+const LIMPIO = (process.env.REMOTION_LIMPIO ?? 'no').toLowerCase() === 'si';
 const PALABRAS_POR_GRUPO = 4;
 
 const AMARILLO = '#f5c400';
@@ -91,7 +96,7 @@ const EtiquetaBox = ({texto, desdeFrame, posicion}: {texto: string; desdeFrame: 
   const pulso = 1 + Math.sin((frame - inicio) / 6) * 0.25;
   return (
     <div style={{position: 'absolute', right: 80, top: 190 + posicion * 140, display: 'flex', alignItems: 'center', gap: 18, opacity: Math.min(1, s), transform: `translateX(${(1 - s) * 140}px)`}}>
-      <div style={{width: 20, height: 20, borderRadius: 10, background: AMARILLO, transform: `scale(${pulso})`, boxShadow: `0 0 24px ${AMARILLO}`}} />
+      {!LIMPIO && <div style={{width: 20, height: 20, borderRadius: 10, background: AMARILLO, transform: `scale(${pulso})`, boxShadow: `0 0 24px ${AMARILLO}`}} />}
       <div style={{background: 'rgba(10,18,23,0.85)', borderLeft: `8px solid ${AMARILLO}`, color: '#fff', fontSize: 46, fontWeight: 800, padding: '14px 30px', letterSpacing: 1, textTransform: 'uppercase', boxShadow: '0 10px 30px rgba(0,0,0,0.5)'}}>
         {texto}
       </div>
@@ -349,7 +354,7 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
 
       <AbsoluteFill style={{background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)'}} />
       <AbsoluteFill style={{background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 35%)'}} />
-      <AbsoluteFill style={{backgroundImage: 'linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)', backgroundSize: '80px 80px'}} />
+      {!LIMPIO && <AbsoluteFill style={{backgroundImage: 'linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)', backgroundSize: '80px 80px'}} />}
 
       {secciones.map((s) => (
         <Sequence key={s.numero} from={s.frame} durationInFrames={Math.round(3 * fps)}>
@@ -363,16 +368,20 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
         </Sequence>
       )}
 
+      {!LIMPIO && (
       <div style={{position: 'absolute', top: 0, left: 0, right: 0, height: 8, background: 'rgba(255,255,255,0.15)'}}>
         <div style={{width: `${(frame / durationInFrames) * 100}%`, height: '100%', background: AMARILLO}} />
         {secciones.map((s) => (
           <div key={s.numero} style={{position: 'absolute', top: 0, left: `${(s.frame / durationInFrames) * 100}%`, width: 4, height: 8, background: '#fff'}} />
         ))}
       </div>
+      )}
 
-      <div style={{position: 'absolute', top: 44, left: 60, color: '#fff', fontSize: 30, fontWeight: 900, letterSpacing: 3, textShadow: '0 2px 12px rgba(0,0,0,0.8)'}}>
-        {MARCA_1} <span style={{color: AMARILLO}}>{MARCA_2}</span>
-      </div>
+      {!LIMPIO && (
+        <div style={{position: 'absolute', top: 44, left: 60, color: '#fff', fontSize: 30, fontWeight: 900, letterSpacing: 3, textShadow: '0 2px 12px rgba(0,0,0,0.8)'}}>
+          {MARCA_1} <span style={{color: AMARILLO}}>{MARCA_2}</span>
+        </div>
+      )}
 
       {actual && KARAOKE && <SubtituloKaraoke cap={actual} t={t} />}
 
