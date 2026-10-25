@@ -192,6 +192,8 @@ REGLA CRITICA DEL CAMPO "desde":
 - Tiene que aparecer TEXTUALMENTE en el guion. No lo reescribas ni cambies una palabra.
 - En el mismo orden del guion, sin repetirse, repartidos de principio a fin.
 
+PALABRAS PROHIBIDAS EN PANTALLA Y EN LA VOZ: las palabras de la estructura (gancho, promesa, bucle abierto, desarrollo, revelacion, remate, cierre, introduccion, parte uno, el dato) son solo instrucciones para ti. NUNCA las escribas en el guion, ni en "seccion", ni en "etiquetas".
+
 SOLO el JSON.`;
 
 // Primero los dos Gemini; si los dos se quedan sin cupo, Groq como respaldo.
@@ -292,6 +294,33 @@ if (!resultado && respaldo) {
 if (!resultado) { console.error('No se obtuvo un guion valido despues de 4 vueltas'); process.exit(1); }
 
 const quitarTildes = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+// Quitar las palabras de la estructura si la IA las copio: no deben salir
+// ni en la voz, ni en las tarjetas de las partes, ni en las etiquetas.
+const ESTRUCTURA = /^\s*(gancho|promesa|bucle( abierto)?|desarrollo|revelaci[oó]n|remate|cierre|introducci[oó]n|parte|secci[oó]n|el dato|estructura|frase)\b/i;
+const antesLimpiar = resultado.guion;
+resultado.guion = String(resultado.guion)
+  .replace(/(^|[.!?]\s+|\n)\s*(gancho|promesa|bucle abierto|desarrollo|revelaci[oó]n|remate|cierre|introducci[oó]n|el dato|parte|secci[oó]n)\s*(\d+|uno|dos|tres|cuatro|cinco)?\s*[:.\-–]\s*/gi, '$1')
+  .replace(/\b(gancho|promesa|bucle abierto|desarrollo|revelaci[oó]n|remate|cierre|introducci[oó]n)\s*(\d+|uno|dos|tres)?\s*:\s*/gi, '')
+  .replace(/\s+/g, ' ')
+  .trim();
+if (resultado.guion !== antesLimpiar.replace(/\s+/g, ' ').trim()) console.log('AVISO: quite palabras de la estructura (gancho, cierre...) del guion');
+resultado.plan.forEach((t, i) => {
+  if (t.seccion && ESTRUCTURA.test(String(t.seccion))) {
+    console.log(`Toma ${i + 1}: quite la seccion "${t.seccion}"`);
+    delete t.seccion;
+  }
+  if (Array.isArray(t.etiquetas)) {
+    t.etiquetas = t.etiquetas.filter((e) => {
+      const texto = typeof e === 'string' ? e : e?.texto;
+      if (texto && ESTRUCTURA.test(String(texto))) {
+        console.log(`Toma ${i + 1}: quite la etiqueta "${texto}"`);
+        return false;
+      }
+      return true;
+    });
+  }
+});
 
 // Nombres de clip seguros: sin tildes, sin ñ, sin espacios raros.
 const nombreSeguro = (s, i) => {
