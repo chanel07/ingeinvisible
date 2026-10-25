@@ -10,7 +10,7 @@
 [x] Así era la tienda del barrio antes
 [x] Dulces de antes que ya no venden
 [x] Con 500 pesos comprabas todo esto
-Así era ver televisión antes del control remoto
+[x] Así era ver televisión antes del control remoto
 El Tamagotchi: la mascota que se te moría en el bolsillo
 El walkman y el arte de cuidar las pilas
 Así era tomar fotos antes del celular
