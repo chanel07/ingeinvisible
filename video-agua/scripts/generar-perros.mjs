@@ -72,26 +72,28 @@ NO hagas una parte de introduccion: arranca directo con el gancho.`,
     formatoGuion: '400-460 palabras. Gancho. Promesa. Las partes del tema en orden. Cierre.',
   },
   corto: {
-    segundos: '10 a 13',
-    palabras: '26 y 34',
-    minPalabras: 22,
-    maxPalabras: 34,
-    tomas: 'entre 5 y 6 tomas. NO menos de 5',
-    minTomas: 5,
-    etiquetas: 'en 1 o 2 tomas',
-    maxGancho: 8,
-    estructura: `VIDEO CORTO: cada palabra cuenta. Sin introducciones, sin rodeos.
+    segundos: '14 a 17',
+    palabras: '34 y 42',
+    minPalabras: 30,
+    maxPalabras: 46,
+    tomas: 'entre 6 y 7 tomas. NO menos de 6',
+    minTomas: 6,
+    etiquetas: 'en 2 tomas',
+    maxGancho: 10,
+    estructura: `VIDEO CORTO PERO COMPLETO: cada palabra cuenta, pero la idea tiene que quedar cerrada.
 
-1. EL GANCHO: la primera frase, maximo 8 palabras.
+1. EL GANCHO: la primera frase, maximo 10 palabras.
 
-2. EL DATO: 2 o 3 frases muy cortas con la respuesta concreta.
-Si el TEMA trae muchos datos, usa SOLO el mas fuerte. No intentes decirlo todo.
+2. EL DATO EXPLICADO: 2 frases cortas que expliquen el porque, de forma simple.
+Si el TEMA trae muchos datos, usa SOLO el mas fuerte.
 
-3. EL REMATE: una frase corta que conecte con la primera, para que cuando el video se repita en bucle se sienta continuo.
+3. EL CONSEJO: 1 frase con lo que el dueno puede hacer.
 
-NO uses bucle abierto ni "te lo digo al final": no hay tiempo para eso.
-CUENTA LAS PALABRAS antes de responder. Si pasas de 34, recorta.`,
-    formatoGuion: '26-34 palabras. Frase 1 = gancho. Luego el dato. Ultima = remate que conecta con la primera.',
+4. LA FRASE FINAL: una frase COMPLETA, de al menos 8 palabras, que cierre la idea y conecte con el gancho, por ejemplo "Asi que la proxima vez que ..., ya sabes que ...". Nunca la dejes a medias, nunca termines con una palabra suelta.
+
+NO uses "te lo digo al final". NO hagas preguntas al final: la pregunta va en el texto de la publicacion.
+CUENTA LAS PALABRAS antes de responder: entre 34 y 42.`,
+    formatoGuion: '34-42 palabras. Gancho. Dato explicado. Consejo. Frase final completa que cierra la idea.',
     duracionToma: '2 o 3 segundos',
     maxSegToma: 3.5,
   },
@@ -279,6 +281,14 @@ for (let vuelta = 1; vuelta <= 4 && !resultado; vuelta++) {
     const n = r.guion.trim().split(/\s+/).length;
     if (n > CONFIG.maxPalabras) {
       console.warn(`Vuelta ${vuelta}: guion de ${n} palabras, el maximo es ${CONFIG.maxPalabras}. Reintentando...`);
+      if (!respaldo || n < respaldo.n) respaldo = {r, n};
+      continue;
+    }
+    // El cierre tiene que ser una frase completa, no una palabra suelta
+    const frasesR = String(r.guion).trim().split(/(?<=[.!?])\s+/);
+    const ultimaR = frasesR[frasesR.length - 1] || '';
+    if (ultimaR.split(/\s+/).length < 7 && vuelta < 4) {
+      console.warn(`Vuelta ${vuelta}: la ultima frase es muy corta ("${ultimaR}"), pido un cierre completo...`);
       if (!respaldo || n < respaldo.n) respaldo = {r, n};
       continue;
     }
