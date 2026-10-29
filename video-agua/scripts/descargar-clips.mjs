@@ -31,6 +31,11 @@ const OBLIGATORIA = OBLIG_TXT ? new RegExp(`\\b(${OBLIG_TXT})`, 'i') : null;
 const RESPALDO_OBLIG = (process.env.CLIPS_RESPALDO ?? 'happy dog').trim();
 if (OBLIGATORIA) console.log(`Todos los clips deben tener: ${OBLIG_TXT}`);
 
+// Modo vertical (videos de perros): busca primero clips verticales y en alta
+// resolucion, para que no haya que agrandarlos y se vean nitidos.
+const VERTICAL = (process.env.CLIPS_VERTICAL ?? 'no').toLowerCase() === 'si';
+if (VERTICAL) console.log('Modo vertical: primero clips verticales en alta resolucion');
+
 // ¿La descripcion del video tiene las palabras de la busqueda?
 // Con 1 o 2 palabras clave deben estar todas; con mas, al menos la mitad.
 const coincide = (q, descripcion) => {
@@ -98,17 +103,21 @@ const pedirUnaVez = async (url, headers) => {
 };
 
 // ---------- Pexels ----------
-const buscarVideoPexels = async (q, estricto) => {
-  const data = await pedirUnaVez(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=40`, {Authorization: KEY});
+const buscarVideoPexels = async (q, estricto, orientacion = VERTICAL ? 'portrait' : 'landscape') => {
+  const data = await pedirUnaVez(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&orientation=${orientacion}&per_page=40`, {Authorization: KEY});
   for (const v of mezclar(data?.videos ?? [])) {
     if (yaUsado(`v${v.id}`) || v.duration < 5) continue;
     if (esRaro(v.url ?? '')) continue;
     if (estricto && !coincide(q, v.url ?? '')) continue;
     const archivos = (v.video_files ?? [])
-      .filter((f) => f.file_type === 'video/mp4' && f.width >= 1280 && f.width <= 1920)
-      .sort((a, b) => b.width - a.width);
+      .filter((f) => f.file_type === 'video/mp4')
+      .filter((f) => (orientacion === 'portrait'
+        ? f.height >= 1280 && f.height <= 2400 && f.height > f.width
+        : f.width >= 1280 && f.width <= 1920))
+      .sort((a, b) => (orientacion === 'portrait' ? b.height - a.height : b.width - a.width));
     if (archivos.length) {
-      return {id: `v${v.id}`, link: archivos[0].link, info: `Pexels video ${archivos[0].width}px ${v.duration}s${estricto ? '' : ', SIN COINCIDIR'}`, fuente: 'pexels', estricto};
+      const f = archivos[0];
+      return {id: `v${v.id}`, link: f.link, info: `Pexels video ${f.width}x${f.height} ${v.duration}s${estricto ? '' : ', SIN COINCIDIR'}`, fuente: 'pexels', estricto};
     }
   }
   return null;
@@ -136,7 +145,10 @@ const buscarVideoPixabay = async (q, estricto) => {
     if (estricto && !coincide(q, `${v.tags ?? ''} ${v.pageURL ?? ''}`)) continue;
     const opciones = ['large', 'medium', 'small']
       .map((k) => v.videos?.[k])
-      .filter((f) => f && f.url && f.width >= 1280 && f.width <= 1920 && f.width > f.height);
+      .filter((f) => f && f.url && (VERTICAL
+        ? (f.height > f.width ? f.height >= 1280 : f.width >= 1280 && f.width <= 1920)
+        : f.width >= 1280 && f.width <= 1920 && f.width > f.height))
+      .sort((a, b) => (VERTICAL ? (b.height > b.width) - (a.height > a.width) : 0));
     if (opciones.length) {
       const f = opciones[0];
       return {id: `x${v.id}`, link: f.url, info: `Pixabay video ${f.width}px ${v.duration}s${estricto ? '' : ', SIN COINCIDIR'}`, fuente: 'pixabay', estricto};
@@ -198,6 +210,7 @@ for (const toma of tomas) {
   // Primero solo videos que coincidan con la busqueda; si nadie tiene, se relaja
   const intentos = [
     () => buscarVideoPexels(buscar, true),
+    ...(VERTICAL ? [() => buscarVideoPexels(buscar, true, 'landscape')] : []),
     () => buscarVideoPixabay(buscar, true),
     () => (hayCorta ? buscarVideoPexels(corta, true) : null),
     () => (hayCorta ? buscarVideoPixabay(corta, true) : null),
