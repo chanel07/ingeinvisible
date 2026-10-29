@@ -14,7 +14,7 @@
 [x] El Tamagotchi: la mascota que se te moría en el bolsillo
 [x] El walkman y el arte de cuidar las pilas
 [x] Así era tomar fotos antes del celular
-El teléfono de disco y las llamadas largas
+[x] El teléfono de disco y las llamadas largas
 Así era el recreo en el colegio
 Los álbumes de láminas y las repetidas
 El yoyo: la moda que llegaba cada año
