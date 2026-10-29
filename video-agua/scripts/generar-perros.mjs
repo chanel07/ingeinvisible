@@ -204,6 +204,7 @@ const GROQ = (process.env.GROQ_KEY ?? '').trim();
 const MODELOS = ['gemini-2.5-flash', 'gemini-3.6-flash'];
 if (GROQ) MODELOS.push('groq:openai/gpt-oss-120b', 'groq:qwen/qwen3.6-27b', 'groq:openai/gpt-oss-20b');
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+let correccion = ''; // se agrega al prompt cuando el guion sale corto o largo
 
 async function pedir(modelo) {
   if (modelo.startsWith('groq:')) {
@@ -212,7 +213,7 @@ async function pedir(modelo) {
       headers: {'Content-Type': 'application/json', Authorization: `Bearer ${GROQ}`},
       body: JSON.stringify({
         model: modelo.slice(5),
-        messages: [{role: 'user', content: prompt}],
+        messages: [{role: 'user', content: prompt + correccion}],
         temperature: 0.8,
         max_tokens: 8192,
         ...(modelo.includes('gpt-oss') ? {reasoning_effort: 'low'} : {}),
@@ -226,7 +227,7 @@ async function pedir(modelo) {
   return fetch(url, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({contents: [{parts: [{text: prompt}]}], generationConfig: config}),
+    body: JSON.stringify({contents: [{parts: [{text: prompt + correccion}]}], generationConfig: config}),
   });
 }
 
@@ -281,7 +282,14 @@ for (let vuelta = 1; vuelta <= 4 && !resultado; vuelta++) {
     const n = r.guion.trim().split(/\s+/).length;
     if (n > CONFIG.maxPalabras) {
       console.warn(`Vuelta ${vuelta}: guion de ${n} palabras, el maximo es ${CONFIG.maxPalabras}. Reintentando...`);
-      if (!respaldo || n < respaldo.n) respaldo = {r, n};
+      if (!respaldo || Math.abs(n - CONFIG.minPalabras) < Math.abs(respaldo.n - CONFIG.minPalabras)) respaldo = {r, n};
+      correccion = `\n\nCORRECCION OBLIGATORIA: tu guion anterior tenia ${n} palabras y es demasiado largo. Debe tener entre ${CONFIG.palabras} palabras. Acortalo sin perder ninguna parte.`;
+      continue;
+    }
+    if (n < CONFIG.minPalabras && vuelta < 4) {
+      console.warn(`Vuelta ${vuelta}: guion de ${n} palabras, el minimo es ${CONFIG.minPalabras}. Pido uno mas completo...`);
+      if (!respaldo || n > respaldo.n) respaldo = {r, n};
+      correccion = `\n\nCORRECCION OBLIGATORIA: tu guion anterior tenia solo ${n} palabras y es demasiado corto. Debe tener entre ${CONFIG.palabras} palabras. Desarrolla cada parte con mas detalle y ejemplos, sin relleno.`;
       continue;
     }
     // El cierre tiene que ser una frase completa, no una palabra suelta
@@ -298,7 +306,7 @@ for (let vuelta = 1; vuelta <= 4 && !resultado; vuelta++) {
   }
 }
 if (!resultado && respaldo) {
-  console.warn(`Ninguno cumplio el largo. Uso el mas corto: ${respaldo.n} palabras.`);
+  console.warn(`Ninguno cumplio el largo. Uso el que mas se acerca: ${respaldo.n} palabras.`);
   resultado = respaldo.r;
 }
 if (!resultado) { console.error('No se obtuvo un guion valido despues de 4 vueltas'); process.exit(1); }
@@ -371,6 +379,21 @@ resultado.plan.forEach((t, i) => {
 // Duracion
 const palabras = resultado.guion.trim().split(/\s+/).length;
 const segundos = Math.round(palabras / 2.5);
+
+// Si el guion quedo corto, sobran tomas y pasarian demasiado rapido.
+// Se dejan solo las que caben, con un minimo de segundos por toma.
+const segMinToma = DURACION === 'extendido' ? 4 : 2;
+const maxTomas = Math.max(3, Math.floor(segundos / segMinToma));
+if (resultado.plan.length > maxTomas) {
+  const antes = resultado.plan.length;
+  const obligatorias = new Set([0, ...resultado.plan.map((t, i) => (t.seccion ? i : -1)).filter((i) => i >= 0)]);
+  const resto = resultado.plan.map((_, i) => i).filter((i) => !obligatorias.has(i));
+  const cupo = Math.max(0, maxTomas - obligatorias.size);
+  const elegidas = new Set(obligatorias);
+  for (let k = 0; k < cupo && resto.length; k++) elegidas.add(resto[Math.floor((k * resto.length) / cupo)]);
+  resultado.plan = resultado.plan.filter((_, i) => elegidas.has(i));
+  console.warn(`AVISO: el guion dura unos ${segundos}s, asi que reduje las tomas de ${antes} a ${resultado.plan.length} para que no pasen tan rapido`);
+}
 console.log(`\nPALABRAS: ${palabras} (aprox ${segundos}s de video)`);
 if (palabras < CONFIG.minPalabras) console.warn('AVISO: el guion salio corto.');
 if (palabras > CONFIG.maxPalabras) console.warn('AVISO: el guion salio largo.');
