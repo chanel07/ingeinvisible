@@ -72,28 +72,28 @@ NO hagas una parte de introduccion: arranca directo con el gancho.`,
     formatoGuion: '400-460 palabras. Gancho. Promesa. Las partes del tema en orden. Cierre.',
   },
   corto: {
-    segundos: '14 a 17',
-    palabras: '34 y 42',
-    minPalabras: 30,
-    maxPalabras: 46,
-    tomas: 'entre 6 y 7 tomas. NO menos de 6',
-    minTomas: 6,
+    segundos: '12 a 14',
+    palabras: '30 y 36',
+    minPalabras: 28,
+    maxPalabras: 38,
+    tomas: 'entre 5 y 6 tomas. NO menos de 5',
+    minTomas: 5,
     etiquetas: 'en 2 tomas',
-    maxGancho: 10,
-    estructura: `VIDEO CORTO PERO COMPLETO: cada palabra cuenta, pero la idea tiene que quedar cerrada.
+    maxGancho: 9,
+    estructura: `VIDEO CORTO PERO COMPLETO, DE MENOS DE 15 SEGUNDOS: cada palabra cuenta, pero la idea tiene que quedar cerrada.
 
-1. EL GANCHO: la primera frase, maximo 10 palabras.
+1. EL GANCHO: la primera frase, maximo 9 palabras.
 
-2. EL DATO EXPLICADO: 2 frases cortas que expliquen el porque, de forma simple.
+2. EL DATO EXPLICADO: 1 o 2 frases muy cortas que expliquen el porque.
 Si el TEMA trae muchos datos, usa SOLO el mas fuerte.
 
-3. EL CONSEJO: 1 frase con lo que el dueno puede hacer.
+3. EL CONSEJO: 1 frase corta con lo que el dueno puede hacer.
 
-4. LA FRASE FINAL: una frase COMPLETA, de al menos 8 palabras, que cierre la idea y conecte con el gancho, por ejemplo "Asi que la proxima vez que ..., ya sabes que ...". Nunca la dejes a medias, nunca termines con una palabra suelta.
+4. LA FRASE FINAL: una frase COMPLETA, de al menos 7 palabras, que cierre la idea y conecte con el gancho. Nunca la dejes a medias, nunca termines con una palabra suelta.
 
 NO uses "te lo digo al final". NO hagas preguntas al final: la pregunta va en el texto de la publicacion.
-CUENTA LAS PALABRAS antes de responder: entre 34 y 42.`,
-    formatoGuion: '34-42 palabras. Gancho. Dato explicado. Consejo. Frase final completa que cierra la idea.',
+CUENTA LAS PALABRAS antes de responder: entre 30 y 36. Si pasas de 36, el video dura mas de 15 segundos y lo ve menos gente.`,
+    formatoGuion: '30-36 palabras. Gancho. Dato explicado. Consejo. Frase final completa que cierra la idea.',
     duracionToma: '2 o 3 segundos',
     maxSegToma: 3.5,
   },
