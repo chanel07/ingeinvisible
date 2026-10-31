@@ -327,9 +327,9 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
 
   let contador = 0;
   const secciones = plan
-    // La primera tarjeta nunca sale en el primer segundo: asi el inicio del video
-    // (que Facebook y YouTube usan como portada) muestra el clip limpio
-    .map((toma, i) => (toma.seccion ? {titulo: toma.seccion, frame: Math.max(Math.round(inicios[i] * fps), Math.round(1.2 * fps)), numero: ++contador} : null))
+    // La primera tarjeta nunca sale al inicio: asi el comienzo del video
+    // (que Facebook y YouTube usan como portada) muestra el clip o el titulo limpio
+    .map((toma, i) => (toma.seccion ? {titulo: toma.seccion, frame: Math.max(Math.round(inicios[i] * fps), Math.round((TITULO ? SEGUNDOS_TITULO + 0.2 : 1.2) * fps)), numero: ++contador} : null))
     .filter((s): s is {titulo: string; frame: number; numero: number} => s !== null);
 
   const actual = captions.find((c) => t >= c.start && t < c.end);
@@ -369,12 +369,12 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
       )}
 
       {!LIMPIO && (
-      <div style={{position: 'absolute', top: 0, left: 0, right: 0, height: 8, background: 'rgba(255,255,255,0.15)'}}>
-        <div style={{width: `${(frame / durationInFrames) * 100}%`, height: '100%', background: AMARILLO}} />
-        {secciones.map((s) => (
-          <div key={s.numero} style={{position: 'absolute', top: 0, left: `${(s.frame / durationInFrames) * 100}%`, width: 4, height: 8, background: '#fff'}} />
-        ))}
-      </div>
+        <div style={{position: 'absolute', top: 0, left: 0, right: 0, height: 8, background: 'rgba(255,255,255,0.15)'}}>
+          <div style={{width: `${(frame / durationInFrames) * 100}%`, height: '100%', background: AMARILLO}} />
+          {secciones.map((s) => (
+            <div key={s.numero} style={{position: 'absolute', top: 0, left: `${(s.frame / durationInFrames) * 100}%`, width: 4, height: 8, background: '#fff'}} />
+          ))}
+        </div>
       )}
 
       {!LIMPIO && (
