@@ -7,6 +7,10 @@ on:
         description: 'Tema del Reel (dejar vacío para tomar de la lista)'
         required: false
         type: string
+      titulo:
+        description: 'Título en pantalla (opcional, sale grande los primeros segundos)'
+        required: false
+        type: string
       duracion:
         description: 'Duración del Reel'
         required: false
@@ -130,6 +134,7 @@ jobs:
         env:
           REMOTION_MARCA: ' '
           REMOTION_LIMPIO: 'si'
+          REMOTION_TITULO: ${{ inputs.titulo }}
         run: |
           mkdir -p out
           npx remotion render Short out/perros-final.mp4 \
