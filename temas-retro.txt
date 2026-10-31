@@ -16,7 +16,7 @@
 [x] Así era tomar fotos antes del celular
 [x] El teléfono de disco y las llamadas largas
 [x] Así era el recreo en el colegio
-Los álbumes de láminas y las repetidas
+[x] Los álbumes de láminas y las repetidas
 El yoyo: la moda que llegaba cada año
 Así era alquilar una película los viernes
 Las cartas y los mensajes antes de WhatsApp
