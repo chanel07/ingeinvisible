@@ -25,9 +25,10 @@ const SEGUNDOS_TITULO = 2.6;
 // Se apaga poniendo REMOTION_KARAOKE=no en el workflow.
 const KARAOKE = (process.env.REMOTION_KARAOKE ?? 'si').toLowerCase() !== 'no';
 
-// Modo limpio para Facebook: sin barra de progreso, sin cuadricula, sin marca y
-// sin el puntico de las etiquetas. Facebook baja el alcance cuando detecta cosas
-// superpuestas que parecen marcas de agua. Se activa con REMOTION_LIMPIO=si.
+// Modo limpio para Facebook: sin barra de progreso, sin cuadricula, sin marca,
+// sin el puntico de las etiquetas y sin vineta en los bordes. Facebook baja el
+// alcance cuando detecta cosas que parecen marcas de agua o bordes.
+// Se activa con REMOTION_LIMPIO=si.
 const LIMPIO = (process.env.REMOTION_LIMPIO ?? 'no').toLowerCase() === 'si';
 const PALABRAS_POR_GRUPO = 4;
 
@@ -352,8 +353,9 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
         );
       })}
 
-      <AbsoluteFill style={{background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)'}} />
-      <AbsoluteFill style={{background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 35%)'}} />
+      {/* En modo limpio no hay vineta: Facebook la detecta como un borde visible */}
+      {!LIMPIO && <AbsoluteFill style={{background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)'}} />}
+      <AbsoluteFill style={{background: LIMPIO ? 'linear-gradient(to top, rgba(0,0,0,0.35) 0%, transparent 28%)' : 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 35%)'}} />
       {!LIMPIO && <AbsoluteFill style={{backgroundImage: 'linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)', backgroundSize: '80px 80px'}} />}
 
       {secciones.map((s) => (
