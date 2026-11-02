@@ -18,7 +18,7 @@
 [x] Así era el recreo en el colegio
 [x] Los álbumes de láminas y las repetidas
 [x] El yoyo: la moda que llegaba cada año
-Así era alquilar una película los viernes
+[x] Así era alquilar una película los viernes
 Las cartas y los mensajes antes de WhatsApp
 Así eran los sábados en la casa
 Juguetes que hoy valen una fortuna
