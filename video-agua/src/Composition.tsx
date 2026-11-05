@@ -2,7 +2,8 @@ import {AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, interpolate, spring,
 
 export type Caption = {start: number; end: number; text: string};
 export type Etiqueta = {texto: string; cuando?: string};
-export type Toma = {desde: string; clip: string; buscar: string; seccion?: string; etiquetas?: unknown};
+export type Plantilla = {tipo: string; mito?: string; verdad?: string};
+export type Toma = {desde: string; clip: string; buscar: string; seccion?: string; etiquetas?: unknown; plantilla?: Plantilla};
 export type VideoProps = {captions: Caption[]; plan: Toma[]};
 
 // Marca del canal. Se cambia con la variable REMOTION_MARCA en el workflow.
@@ -133,6 +134,89 @@ const TomaVideo = ({toma, indice, inicio, fin, captions}: {toma: Toma; indice: n
         const seg = Math.max(0, (s ?? inicio + 1) - inicio);
         return <EtiquetaBox key={k} texto={e.texto} desdeFrame={Math.round(seg * fps)} posicion={k} />;
       })}
+    </AbsoluteFill>
+  );
+};
+
+// Plantilla animada "Mito o verdad": un dibujo propio en vez de un clip de stock.
+// Aparece el mito, se tacha con un sello rojo y despues sube la verdad.
+const VERDE = '#2ecc71';
+const ROJO_MITO = '#ff4d4d';
+const tamTexto = (t: string, base: number) => (t.length > 60 ? base * 0.72 : t.length > 40 ? base * 0.85 : base);
+
+const PlantillaMito = ({mito, verdad, dur}: {mito: string; verdad: string; dur: number}) => {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const vertical = height > width;
+  const base = vertical ? width * 0.072 : height * 0.075;
+
+  const tTachar = Math.max(Math.round(1.4 * fps), Math.round(dur * 0.36));
+  const tVerdad = tTachar + Math.round(0.6 * fps);
+
+  const fundido = interpolate(frame, [0, FUNDIDO], [0, 1], fijo);
+  const entraMito = spring({frame, fps, config: {damping: 14, stiffness: 120}});
+  const tacha = interpolate(frame, [tTachar, tTachar + Math.round(0.35 * fps)], [0, 1], fijo);
+  const sello = spring({frame: frame - tTachar, fps, config: {damping: 9, stiffness: 180}});
+  const entraVerdad = spring({frame: frame - tVerdad, fps, config: {damping: 14, stiffness: 110}});
+  const apagaMito = interpolate(frame, [tVerdad, tVerdad + 12], [1, 0.55], fijo);
+  const brillo = 0.5 + 0.5 * Math.sin(frame / 18);
+
+  const tarjeta = {
+    background: 'rgba(255,255,255,0.07)',
+    borderRadius: 32,
+    padding: vertical ? '44px 46px' : '30px 40px',
+    width: vertical ? '84%' : '70%',
+    position: 'relative' as const,
+    boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
+  };
+  const pastilla = (color: string) => ({
+    display: 'inline-block',
+    background: color,
+    color: '#fff',
+    fontWeight: 900,
+    fontSize: base * 0.55,
+    letterSpacing: 4,
+    padding: '8px 26px',
+    borderRadius: 999,
+    marginBottom: 18,
+  });
+  const icono = (color: string, escala: number) => ({
+    position: 'absolute' as const,
+    right: -28,
+    top: -38,
+    width: base * 1.7,
+    height: base * 1.7,
+    borderRadius: '50%',
+    background: color,
+    color: '#fff',
+    fontSize: base * 1.05,
+    fontWeight: 900,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: `scale(${escala}) rotate(${(1 - escala) * -40}deg)`,
+    boxShadow: '0 10px 30px rgba(0,0,0,0.45)',
+    border: '6px solid #fff',
+  });
+
+  return (
+    <AbsoluteFill style={{opacity: fundido, background: 'linear-gradient(160deg, #0d1b2a 0%, #1b3a4b 55%, #234e52 100%)'}}>
+      <AbsoluteFill style={{background: `radial-gradient(circle at 50% 30%, rgba(245,196,0,${0.10 + 0.06 * brillo}) 0%, transparent 55%)`}} />
+      <AbsoluteFill style={{alignItems: 'center', justifyContent: vertical ? 'flex-start' : 'center', paddingTop: vertical ? '16%' : 0, gap: vertical ? 70 : 34, flexDirection: vertical ? 'column' : 'row'}}>
+        <div style={{...tarjeta, opacity: Math.min(1, entraMito) * apagaMito, transform: `translateY(${(1 - entraMito) * -80}px) scale(${0.9 + 0.1 * entraMito})`}}>
+          <div style={pastilla(ROJO_MITO)}>MITO</div>
+          <div style={{position: 'relative', color: '#fff', fontWeight: 900, fontSize: tamTexto(mito, base), lineHeight: 1.18}}>
+            {mito}
+            <div style={{position: 'absolute', left: -10, top: '48%', height: base * 0.16, width: `calc(${tacha * 100}% + 20px)`, background: ROJO_MITO, borderRadius: 8, transform: 'rotate(-4deg)', boxShadow: '0 4px 14px rgba(0,0,0,0.4)'}} />
+          </div>
+          <div style={icono(ROJO_MITO, Math.max(0, sello))}>✗</div>
+        </div>
+        <div style={{...tarjeta, opacity: Math.min(1, Math.max(0, entraVerdad)), transform: `translateY(${(1 - entraVerdad) * 140}px)`, background: 'rgba(46,204,113,0.12)'}}>
+          <div style={pastilla(VERDE)}>VERDAD</div>
+          <div style={{color: '#fff', fontWeight: 900, fontSize: tamTexto(verdad, base), lineHeight: 1.18}}>{verdad}</div>
+          <div style={icono(VERDE, Math.max(0, entraVerdad))}>✓</div>
+        </div>
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };
@@ -348,7 +432,11 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
         if (hasta <= desde) return null;
         return (
           <Sequence key={i} from={desde} durationInFrames={hasta - desde + FUNDIDO}>
-            <TomaVideo toma={toma} indice={i} inicio={inicios[i]} fin={hasta / fps} captions={captions} />
+            {toma.plantilla?.tipo === 'mito' && toma.plantilla.mito && toma.plantilla.verdad ? (
+              <PlantillaMito mito={toma.plantilla.mito} verdad={toma.plantilla.verdad} dur={hasta - desde} />
+            ) : (
+              <TomaVideo toma={toma} indice={i} inicio={inicios[i]} fin={hasta / fps} captions={captions} />
+            )}
           </Sequence>
         );
       })}
