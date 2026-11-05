@@ -117,7 +117,7 @@ jobs:
           mkdir -p public/clips-mini
           for f in public/clips/*.mp4; do
             n=$(basename "$f")
-            ffmpeg -y -loglevel error -i "$f" -t 15 -vf "scale='if(gt(iw,ih),-2,1080)':'if(gt(iw,ih),1920,-2)'" -c:v libx264 -crf 20 -preset veryfast -an "public/clips-mini/$n"
+            ffmpeg -y -loglevel error -i "$f" -t 15 -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -crf 20 -preset veryfast -an "public/clips-mini/$n"
           done
           rm -rf public/clips
           mv public/clips-mini public/clips
@@ -138,7 +138,7 @@ jobs:
         run: |
           mkdir -p out
           npx remotion render Short out/perros-final.mp4 \
-            --concurrency=2 \
+            --concurrency=4 \
             --jpeg-quality=95 \
             --crf=20
 
