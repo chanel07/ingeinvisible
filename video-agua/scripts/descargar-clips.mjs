@@ -31,6 +31,11 @@ const OBLIGATORIA = OBLIG_TXT ? new RegExp(`\\b(${OBLIG_TXT})`, 'i') : null;
 const RESPALDO_OBLIG = (process.env.CLIPS_RESPALDO ?? 'happy dog').trim();
 if (OBLIGATORIA) console.log(`Todos los clips deben tener: ${OBLIG_TXT}`);
 
+// Si se piden perros, se rechaza todo lo que mencione otro animal: a veces una
+// foto de un erizo o un gato dice "puppy" o "dog" en la descripcion y se colaba.
+const OTROS_ANIMALES = /\b(hedgehogs?|cats?|kittens?|kitty|rabbits?|bunny|bunnies|hamsters?|guinea pigs?|ferrets?|foxes|fox|squirrels?|porcupines?|raccoons?|birds?|parrots?|horses?|goats?|cows?|sheep|pigs?|piglets?|monkeys?|bears?|lions?|tigers?|mice|mouse|rats?|otters?|seals?|deer)\b/i;
+const otroAnimal = (descripcion) => !!OBLIGATORIA && OTROS_ANIMALES.test(String(descripcion).toLowerCase().replace(/[-_/]+/g, ' '));
+
 // Modo vertical (videos de perros): busca primero clips verticales y en alta
 // resolucion, para que no haya que agrandarlos y se vean nitidos.
 const VERTICAL = (process.env.CLIPS_VERTICAL ?? 'no').toLowerCase() === 'si';
@@ -107,7 +112,7 @@ const buscarVideoPexels = async (q, estricto, orientacion = VERTICAL ? 'portrait
   const data = await pedirUnaVez(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&orientation=${orientacion}&per_page=40`, {Authorization: KEY});
   for (const v of mezclar(data?.videos ?? [])) {
     if (yaUsado(`v${v.id}`) || v.duration < 5) continue;
-    if (esRaro(v.url ?? '')) continue;
+    if (esRaro(v.url ?? '') || otroAnimal(v.url ?? '')) continue;
     if (estricto && !coincide(q, v.url ?? '')) continue;
     const archivos = (v.video_files ?? [])
       .filter((f) => f.file_type === 'video/mp4')
@@ -127,7 +132,7 @@ const buscarFotoPexels = async (q, estricto) => {
   const data = await pedirUnaVez(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=40`, {Authorization: KEY});
   for (const p of mezclar(data?.photos ?? [])) {
     if (yaUsado(`f${p.id}`)) continue;
-    if (esRaro(`${p.alt ?? ''} ${p.url ?? ''}`)) continue;
+    if (esRaro(`${p.alt ?? ''} ${p.url ?? ''}`) || otroAnimal(`${p.alt ?? ''} ${p.url ?? ''}`)) continue;
     if (estricto && !coincide(q, `${p.alt ?? ''} ${p.url ?? ''}`)) continue;
     const link = p.src?.large2x || p.src?.original;
     if (link) return {id: `f${p.id}`, link, info: `Pexels FOTO${estricto ? '' : ', SIN COINCIDIR'}`, foto: true, estricto};
@@ -141,7 +146,7 @@ const buscarVideoPixabay = async (q, estricto) => {
   const data = await pedirUnaVez(`https://pixabay.com/api/videos/?key=${PIXABAY}&q=${encodeURIComponent(q.slice(0, 100))}&per_page=40&safesearch=true`);
   for (const v of mezclar(data?.hits ?? [])) {
     if (yaUsado(`x${v.id}`) || (v.duration ?? 0) < 5) continue;
-    if (esRaro(`${v.tags ?? ''} ${v.pageURL ?? ''}`)) continue;
+    if (esRaro(`${v.tags ?? ''} ${v.pageURL ?? ''}`) || otroAnimal(`${v.tags ?? ''} ${v.pageURL ?? ''}`)) continue;
     if (estricto && !coincide(q, `${v.tags ?? ''} ${v.pageURL ?? ''}`)) continue;
     const opciones = ['large', 'medium', 'small']
       .map((k) => v.videos?.[k])
@@ -213,17 +218,21 @@ for (const toma of tomas) {
     ...(VERTICAL ? [() => buscarVideoPexels(buscar, true, 'landscape')] : []),
     () => buscarVideoPixabay(buscar, true),
     () => (hayCorta ? buscarVideoPexels(corta, true) : null),
+    ...(VERTICAL ? [() => (hayCorta ? buscarVideoPexels(corta, true, 'landscape') : null)] : []),
     () => (hayCorta ? buscarVideoPixabay(corta, true) : null),
-    () => buscarFotoPexels(buscar, true),
   ];
   if (OBLIGATORIA) {
-    // Nunca un clip sin la palabra obligatoria: si no hay, se usa una busqueda segura
+    // Nunca un clip sin la palabra obligatoria: si no hay, se usa un video seguro.
+    // Las fotos quedan de ultimo recurso, porque un video siempre se ve mejor.
     intentos.push(
       () => buscarVideoPexels(RESPALDO_OBLIG, true),
+      ...(VERTICAL ? [() => buscarVideoPexels(RESPALDO_OBLIG, true, 'landscape')] : []),
       () => buscarVideoPixabay(RESPALDO_OBLIG, true),
+      () => buscarFotoPexels(buscar, true),
       () => buscarVideoPexels(RESPALDO_OBLIG, false),
     );
   } else {
+    intentos.push(() => buscarFotoPexels(buscar, true));
     intentos.push(
       () => buscarVideoPexels(buscar, false),
       () => buscarVideoPixabay(buscar, false),
