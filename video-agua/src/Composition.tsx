@@ -2,7 +2,8 @@ import {AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, interpolate, spring,
 
 export type Caption = {start: number; end: number; text: string};
 export type Etiqueta = {texto: string; cuando?: string};
-export type Plantilla = {tipo: string; mito?: string; verdad?: string};
+export type ItemLista = string | {texto: string; cuando?: string};
+export type Plantilla = {tipo: string; mito?: string; verdad?: string; titulo?: string; items?: ItemLista[]};
 export type Toma = {desde: string; clip: string; buscar: string; seccion?: string; etiquetas?: unknown; plantilla?: Plantilla};
 export type VideoProps = {captions: Caption[]; plan: Toma[]};
 
@@ -221,6 +222,74 @@ const PlantillaMito = ({mito, verdad, dur}: {mito: string; verdad: string; dur: 
   );
 };
 
+// Plantilla animada "Lista": los puntos aparecen uno por uno, con su numero.
+// Si cada punto trae "cuando", aparece justo cuando la voz lo dice; si no, se reparten en el tiempo.
+const PlantillaLista = ({titulo, items, dur, inicio, captions}: {titulo?: string; items: ItemLista[]; dur: number; inicio: number; captions: Caption[]}) => {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const vertical = height > width;
+  const lista = items.map((it) => (typeof it === 'string' ? {texto: it} : it)).filter((it) => it && it.texto);
+  const n = Math.max(1, lista.length);
+  const base = (vertical ? width * 0.062 : height * 0.06) * (n > 6 ? 0.8 : 1);
+
+  // Momento en que aparece cada punto
+  const margen = Math.round(0.3 * fps);
+  const paso = Math.max(1, Math.floor((dur - margen * 2) / n));
+  const momentos = lista.map((it, k) => {
+    const s = buscarInicio(captions, it.cuando, inicio);
+    const f = s !== null ? Math.round((s - inicio) * fps) : margen + k * paso;
+    return Math.max(0, Math.min(dur - 6, f));
+  });
+  let actual = -1;
+  momentos.forEach((m, k) => {
+    if (frame >= m) actual = k;
+  });
+
+  const fundido = interpolate(frame, [0, FUNDIDO], [0, 1], fijo);
+  const entraTitulo = spring({frame, fps, config: {damping: 14, stiffness: 120}});
+  const brillo = 0.5 + 0.5 * Math.sin(frame / 18);
+
+  return (
+    <AbsoluteFill style={{opacity: fundido, background: 'linear-gradient(160deg, #0d1b2a 0%, #1b2f4b 55%, #2a2350 100%)'}}>
+      <AbsoluteFill style={{background: `radial-gradient(circle at 50% 25%, rgba(245,196,0,${0.09 + 0.05 * brillo}) 0%, transparent 55%)`}} />
+      <AbsoluteFill style={{alignItems: 'center', justifyContent: 'flex-start', paddingTop: vertical ? '12%' : '5%', flexDirection: 'column', gap: vertical ? 26 : 16}}>
+        {titulo && (
+          <div style={{color: AMARILLO, fontWeight: 900, fontSize: base * 1.05, textTransform: 'uppercase', letterSpacing: 2, textAlign: 'center', width: '86%', marginBottom: vertical ? 18 : 8, opacity: entraTitulo, transform: `translateY(${(1 - entraTitulo) * -40}px)`, textShadow: '0 6px 24px rgba(0,0,0,0.6)'}}>
+            {titulo}
+          </div>
+        )}
+        {lista.map((it, k) => {
+          const sp = spring({frame: frame - momentos[k], fps, config: {damping: 13, stiffness: 140}});
+          if (frame < momentos[k]) return null;
+          const esActual = k === actual;
+          return (
+            <div
+              key={k}
+              style={{
+                width: vertical ? '86%' : '62%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 26,
+                padding: vertical ? '20px 28px' : '12px 22px',
+                borderRadius: 26,
+                background: esActual ? 'rgba(245,196,0,0.16)' : 'rgba(255,255,255,0.07)',
+                boxShadow: esActual ? '0 0 0 4px rgba(245,196,0,0.55), 0 16px 40px rgba(0,0,0,0.35)' : '0 10px 26px rgba(0,0,0,0.25)',
+                opacity: Math.min(1, sp) * (esActual ? 1 : 0.78),
+                transform: `translateX(${(1 - sp) * 160}px)`,
+              }}
+            >
+              <div style={{flex: '0 0 auto', width: base * 1.35, height: base * 1.35, borderRadius: '50%', background: AMARILLO, color: '#111', fontWeight: 900, fontSize: base * 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center', transform: `scale(${0.6 + 0.4 * Math.min(1, sp)})`}}>
+                {k + 1}
+              </div>
+              <div style={{color: '#fff', fontWeight: 900, fontSize: it.texto.length > 28 ? base * 0.82 : base, lineHeight: 1.15}}>{it.texto}</div>
+            </div>
+          );
+        })}
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
 const TarjetaSeccion = ({numero, titulo}: {numero: number; titulo: string}) => {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
@@ -434,6 +503,8 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
           <Sequence key={i} from={desde} durationInFrames={hasta - desde + FUNDIDO}>
             {toma.plantilla?.tipo === 'mito' && toma.plantilla.mito && toma.plantilla.verdad ? (
               <PlantillaMito mito={toma.plantilla.mito} verdad={toma.plantilla.verdad} dur={hasta - desde} />
+            ) : toma.plantilla?.tipo === 'lista' && toma.plantilla.items?.length ? (
+              <PlantillaLista titulo={toma.plantilla.titulo} items={toma.plantilla.items} dur={hasta - desde} inicio={inicios[i]} captions={captions} />
             ) : (
               <TomaVideo toma={toma} indice={i} inicio={inicios[i]} fin={hasta / fps} captions={captions} />
             )}
