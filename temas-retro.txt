@@ -22,7 +22,7 @@
 [x] Las cartas y los mensajes antes de WhatsApp
 [x] Así eran los sábados en la casa
 [x] Juguetes que hoy valen una fortuna
-El primer celular que tuviste
+[x] El primer celular que tuviste
 Así era hacer tareas sin internet
 Las caricaturas de la mañana antes del colegio
 Cosas que tus papás te decían de niño
