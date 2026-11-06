@@ -151,6 +151,7 @@ REGLAS DEL PLAN DE TOMAS:
 - "clip": nombre único en español con guiones, terminado en .mp4 (por ejemplo cable-caliente.mp4).
 - "buscar": búsqueda en INGLÉS para video de stock, concreta y visual, del objeto exacto que se nombra en esa parte (por ejemplo "gas stove flame", no "danger"). Si el productor dio búsquedas, úsalas. NUNCA uses subscribe, thank you, intro, outro, youtube ni texto.
 - "etiquetas": lista con 0 o 1 etiqueta por toma: {"texto": "máximo 3 palabras", "cuando": "frase exacta del guion"}.
+- "plantilla": SOLO si el productor lo pide en el tema. Copia el campo "plantilla" EXACTAMENTE como lo escribió el productor, en la toma que él indicó, y esa toma va sin etiquetas. Si el productor no pide plantilla, no pongas este campo.
 
 Responde SOLO con este JSON:
 {"guion": "...", "plan": [{"desde": "", "clip": "nombre.mp4", "buscar": "english query", "etiquetas": [{"texto": "TEXTO", "cuando": "frase"}]}]}`;
@@ -291,7 +292,14 @@ function normalizarPlan(plan) {
         .slice(0, 1)
         .map((e) => ({texto: e.texto.trim(), ...(e.cuando ? {cuando: String(e.cuando)} : {})}));
 
-      return {desde: i === 0 ? '' : String(t.desde ?? ''), clip: `${clip}.mp4`, buscar, etiquetas};
+      // Plantilla animada (mito o lista): si viene bien formada, se conserva tal cual
+      const p = t.plantilla;
+      const plantillaOk =
+        p && typeof p === 'object' && typeof p.tipo === 'string' &&
+        ((p.tipo === 'mito' && p.mito && p.verdad) || (p.tipo === 'lista' && Array.isArray(p.items) && p.items.length));
+      if (p && !plantillaOk) console.log(`  toma ${i + 1}: la plantilla vino incompleta y no se usa`);
+
+      return {desde: i === 0 ? '' : String(t.desde ?? ''), clip: `${clip}.mp4`, buscar, etiquetas: plantillaOk ? [] : etiquetas, ...(plantillaOk ? {plantilla: p} : {})};
     });
 }
 
@@ -337,5 +345,5 @@ if (ultima.split(/\s+/).length < 8) console.log('AVISO: la última frase es muy 
 await fs.writeFile('public/guion.txt', guion, 'utf8');
 await fs.writeFile('public/plan.json', JSON.stringify(plan, null, 2), 'utf8');
 console.log(`Plan: ${plan.length} tomas`);
-plan.forEach((t, i) => console.log(`  ${i + 1}. ${t.clip} <- "${t.buscar}"${t.desde ? ` desde "${t.desde}"` : ''}`));
+plan.forEach((t, i) => console.log(`  ${i + 1}. ${t.clip} <- "${t.buscar}"${t.desde ? ` desde "${t.desde}"` : ''}${t.plantilla ? ` [PLANTILLA ${t.plantilla.tipo}]` : ''}`));
 console.log('Listo.');
