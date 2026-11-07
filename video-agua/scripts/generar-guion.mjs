@@ -9,9 +9,19 @@ if (!KEY || !TEMA) {
   process.exit(1);
 }
 
+// Duracion del video en minutos (la manda el workflow). 4 = video normal; 8 o 10 = documental.
+const MINUTOS = Math.min(15, Math.max(3, Number(process.env.MINUTOS) || 4));
+const DOCUMENTAL = MINUTOS >= 7;
+const MIN_PALABRAS = Math.round(MINUTOS * 140);
+const MAX_PALABRAS = Math.round(MINUTOS * 160);
+const TOMAS_MIN = Math.round((MINUTOS * 60) / 15);
+const TOMAS_MAX = Math.round((MINUTOS * 60) / 11);
+const CLIPS_DISTINTOS = `${Math.round(TOMAS_MIN * 0.5)} y ${Math.round(TOMAS_MAX * 0.6)}`;
+console.log(`DURACION: unos ${MINUTOS} minutos (${MIN_PALABRAS} a ${MAX_PALABRAS} palabras)${DOCUMENTAL ? ', estilo documental' : ''}`);
+
 // Primero los dos Gemini; si los dos se quedan sin cupo, Groq como respaldo
 const MODELOS = ['gemini-3.6-flash', 'gemini-2.5-flash'];
-if (GROQ) MODELOS.push('groq:llama-3.3-70b-versatile', 'groq:openai/gpt-oss-120b');
+if (GROQ) MODELOS.push('groq:openai/gpt-oss-120b', 'groq:qwen/qwen3.6-27b', 'groq:openai/gpt-oss-20b');
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Frase de gancho obligatoria que viene dentro del tema (si la hay)
@@ -25,7 +35,7 @@ async function pedir(modelo, prompt) {
     return fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', Authorization: `Bearer ${GROQ}`},
-      body: JSON.stringify({model: modelo.slice(5), messages: [{role: 'user', content: prompt}], temperature: 0.8, max_tokens: 8000}),
+      body: JSON.stringify({model: modelo.slice(5), messages: [{role: 'user', content: prompt}], temperature: 0.8, max_tokens: 8192, ...(modelo.includes('gpt-oss') ? {reasoning_effort: 'low'} : {})}),
     });
   }
   const config = {temperature: 0.9, maxOutputTokens: 32000};
@@ -71,7 +81,7 @@ async function llamarIA(prompt, etiqueta) {
       const status = res.status;
       const msg = (await res.text()).replace(/\s+/g, ' ').slice(0, 200);
       if (status === 404 || (esGroq && status === 400)) {
-        console.log(`  ${modelo} no disponible, paso al siguiente`);
+        console.log(`  ${modelo} no disponible (${status}): ${msg}`);
         break;
       }
       if (status === 429 && (/exceeded your current quota/i.test(msg) || esGroq)) {
@@ -110,7 +120,7 @@ function parsear(texto, etiqueta) {
 
 // ---------- PASO 1: el guion ----------
 
-const promptGuion = `Eres el guionista del canal "Ingeniería Invisible". Explicas ingeniería cotidiana de forma clara y directa, en videos largos de unos 4 minutos, para un público adulto de toda Latinoamérica.
+const promptGuion = `Eres el guionista del canal "Ingeniería Invisible". Explicas ingeniería cotidiana de forma clara y directa, en videos largos de unos ${MINUTOS} minutos, para un público adulto de toda Latinoamérica.${DOCUMENTAL ? '\n\nESTILO DOCUMENTAL: este es un video largo tipo documental. Narra como un buen documental de televisión: con ritmo, curiosidad y pequeños momentos de sorpresa, pero siempre claro y cercano. Divide el contenido en capítulos (los que indique el productor, o de 6 a 8). Cada capítulo empieza con una frase de transición que enganche (por ejemplo: Pero aquí viene lo más sorprendente), explica UNA idea con ejemplos de la vida diaria, y termina dejando una pregunta o una curiosidad que lleve al siguiente. Mezcla la explicación de cómo funciona con historias, datos curiosos y consecuencias prácticas.' : ''}
 
 TEMA E INSTRUCCIONES DEL PRODUCTOR:
 ${TEMA}
@@ -127,7 +137,7 @@ Después del gancho, promete en una frase lo que el espectador va a entender al 
 LA ÚLTIMA FRASE antes de la invitación a suscribirse debe cerrar el círculo: retoma la MISMA imagen de la primera frase, ya con la respuesta.
 
 REGLAS GENERALES:
-- Entre 550 y 700 palabras. Español neutro de Latinoamérica, frases cortas, números escritos en letras.
+- Entre ${MIN_PALABRAS} y ${MAX_PALABRAS} palabras. CUENTA LAS PALABRAS: un guion más corto deja el video incompleto. Español neutro de Latinoamérica, frases cortas, números escritos en letras.
 - Tono de conversación con un amigo, no de clase.
 - PROHIBIDO inventar porcentajes, estadísticas, fechas o cifras que no vengan en el tema. Si no estás seguro de un dato, no lo pongas.
 - PROHIBIDO una parte de introducción: se arranca directo con el gancho.
@@ -160,9 +170,22 @@ if (GANCHO) {
   }
 }
 
+// Si el guion salio muy corto, se pide de nuevo con una correccion (hasta 2 veces)
+for (let intento = 1; intento <= 2; intento++) {
+  const n = guion.split(/\s+/).length;
+  if (n >= MIN_PALABRAS * 0.85) break;
+  console.log(`AVISO: el guion tiene ${n} palabras y el mínimo es ${MIN_PALABRAS}. Pido uno más completo (${intento}/2)...`);
+  await esperar(15000);
+  const otro = await llamarIA(promptGuion + `\n\nCORRECCIÓN OBLIGATORIA: tu guion anterior tenía solo ${n} palabras y es demasiado corto. Debe tener entre ${MIN_PALABRAS} y ${MAX_PALABRAS} palabras. Desarrolla cada parte con más detalle, ejemplos de la vida diaria y datos del tema, sin relleno ni repeticiones.`, 'guion');
+  if (otro) {
+    const limpio2 = otro.replace(/```/g, '').replace(/^\s*(guion|guión)\s*:?\s*/i, '').replace(/^\s*(introducci[oó]n|parte\s*\d+|secci[oó]n\s*\d+|cap[ií]tulo\s*\d+)\s*:?.*$/gim, '').replace(/[#*_]/g, '').replace(/\n{3,}/g, '\n\n').trim();
+    if (limpio2.split(/\s+/).length > n) guion = limpio2;
+  }
+}
+
 const palabras = guion.split(/\s+/).length;
 console.log(`\nPALABRAS: ${palabras} (aprox ${Math.round(palabras / 2.6)}s de video)`);
-if (palabras < 400) console.warn('AVISO: el guion salió corto.');
+if (palabras < MIN_PALABRAS * 0.85) console.warn('AVISO: el guion salió corto.');
 
 // Pausa corta para no chocar con el limite de solicitudes por minuto
 await esperar(15000);
@@ -186,13 +209,14 @@ Arma el plan de tomas. Responde SOLO con un array JSON, sin backticks ni texto e
 ]
 
 REGLAS:
-- 14 a 18 tomas. Cada una es un cambio visual de 12 a 18 segundos.
+- ${TOMAS_MIN} a ${TOMAS_MAX} tomas. Cada una es un cambio visual de 11 a 15 segundos.
 - clip: nombre descriptivo en español con guiones, terminado en .mp4
-- Puedes REPETIR el mismo archivo de clip en tomas distintas. Usa entre 8 y 10 archivos distintos en total.
+- Puedes REPETIR el mismo archivo de clip en tomas distintas, pero no seguidas. Usa entre ${CLIPS_DISTINTOS} archivos distintos en total.
 - buscar: en INGLÉS, concreto y visual, del objeto exacto que se nombra en esa parte. Si el productor dio búsquedas, úsalas. Un archivo de clip siempre lleva la MISMA búsqueda. Nunca uses subscribe, thank you, end screen ni youtube.
 - seccion: solo en la primera toma de cada parte del guion; tantas secciones como partes tenga (normalmente de 4 a 6), con 2 o 3 palabras y ortografía perfecta. NUNCA una sección llamada Introducción. En las demás tomas, omite el campo.
 - etiquetas: máximo 1 por toma, máximo 4 palabras, y solo en 5 o 6 tomas de todo el video.
 - La última toma lleva la etiqueta "Próximo video".
+- plantilla: SOLO si el productor lo pide en el tema. Copia el campo "plantilla" EXACTAMENTE como lo escribió el productor, en la toma que él indicó, y esa toma va sin etiquetas. Si no lo pide, no pongas este campo.
 
 REGLA CRÍTICA DEL CAMPO "desde":
 - La primera toma lleva desde: ""
@@ -229,7 +253,7 @@ plan = plan.map((t) => {
 // ---------- Controles ----------
 
 console.log(`TOMAS: ${plan.length} (aprox ${(palabras / 2.6 / plan.length).toFixed(1)}s por toma)`);
-if (plan.length < 10) console.warn('AVISO: pocas tomas, el ritmo va a quedar lento.');
+if (plan.length < TOMAS_MIN * 0.7) console.warn('AVISO: pocas tomas, el ritmo va a quedar lento.');
 
 const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 const guionNorm = normalizar(guion);
