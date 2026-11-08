@@ -143,6 +143,23 @@ jobs:
         working-directory: video-agua
         run: |
           mkdir -p out
+          # Titulo grande al inicio (sale del titulo de YouTube que genera el sistema)
+          TITULO=""
+          if [ -f out/metadatos.txt ]; then
+            TITULO=$(sed -n '2p' out/metadatos.txt)
+          fi
+          echo "Título en pantalla: $TITULO"
+          export REMOTION_TITULO="$TITULO"
+          # Efectos de sonido: si falta alguno, el video sale sin efectos en vez de fallar
+          SFX_OK=si
+          for s in whoosh pop ding tachar impacto; do
+            if [ ! -f "public/sfx/$s.mp3" ]; then
+              echo "AVISO: falta public/sfx/$s.mp3, el video sale sin efectos de sonido"
+              SFX_OK=no
+            fi
+          done
+          echo "Efectos de sonido: $SFX_OK"
+          export REMOTION_SFX="$SFX_OK"
           npx remotion render AguaGrifo out/video-final.mp4 \
             --concurrency=4 \
             --jpeg-quality=95 \
