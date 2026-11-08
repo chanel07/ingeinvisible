@@ -82,6 +82,8 @@ jobs:
 
       - name: Renderizar Short
         working-directory: video-agua
+                env:
+          REMOTION_SFX: 'no'
         run: npx remotion render Short out/short.mp4 --concurrency=1 --jpeg-quality=80
 
       - name: Comprimir Short
