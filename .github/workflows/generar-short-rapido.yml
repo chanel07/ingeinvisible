@@ -68,6 +68,7 @@ jobs:
         working-directory: video-agua
         env:
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+          GROQ_KEY: ${{ secrets.GROQ_KEY }}
           TEMA: ${{ steps.tema.outputs.TEMA }}
         run: node scripts/generar-short.mjs
 
@@ -97,6 +98,7 @@ jobs:
         continue-on-error: true
         env:
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+          GROQ_KEY: ${{ secrets.GROQ_KEY }}
           TEMA: ${{ steps.tema.outputs.TEMA }}
           TIPO: short
         run: node scripts/generar-metadatos.mjs
@@ -106,6 +108,7 @@ jobs:
         env:
           PEXELS_KEY: ${{ secrets.PEXELS_KEY }}
           PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
+          CLIPS_VERTICAL: 'si'
         run: rm -rf public/clips && node scripts/descargar-clips.mjs
 
       - name: Preparar clips
@@ -114,7 +117,7 @@ jobs:
           mkdir -p public/clips-mini
           for f in public/clips/*.mp4; do
             n=$(basename "$f")
-            ffmpeg -y -loglevel error -i "$f" -t 15 -vf "scale=1080:-2" -c:v libx264 -crf 22 -preset veryfast -an "public/clips-mini/$n"
+            ffmpeg -y -loglevel error -stream_loop -1 -i "$f" -t 15 -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -crf 20 -preset veryfast -an "public/clips-mini/$n"
           done
           rm -rf public/clips
           mv public/clips-mini public/clips
@@ -137,8 +140,18 @@ jobs:
           fi
           echo "Título en pantalla: $TITULO"
           export REMOTION_TITULO="$TITULO"
+          # Efectos de sonido: si falta alguno, el video sale sin efectos en vez de fallar
+          SFX_OK=si
+          for s in whoosh pop ding tachar impacto; do
+            if [ ! -f "public/sfx/$s.mp3" ]; then
+              echo "AVISO: falta public/sfx/$s.mp3, el video sale sin efectos de sonido"
+              SFX_OK=no
+            fi
+          done
+          echo "Efectos de sonido: $SFX_OK"
+          export REMOTION_SFX="$SFX_OK"
           npx remotion render Short out/short-final.mp4 \
-            --concurrency=2 \
+            --concurrency=4 \
             --jpeg-quality=95 \
             --crf=20
 
