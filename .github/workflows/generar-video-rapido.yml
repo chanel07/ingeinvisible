@@ -9,11 +9,20 @@ on:
         description: 'Tema del video (dejar vacío para tomar de la lista)'
         required: false
         type: string
+      minutos:
+        description: 'Duración del video (8 o 10 = estilo documental)'
+        required: false
+        type: choice
+        default: '4'
+        options:
+          - '4'
+          - '8'
+          - '10'
 
 jobs:
   video:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 150
     permissions:
       contents: write
 
@@ -70,6 +79,7 @@ jobs:
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
           GROQ_KEY: ${{ secrets.GROQ_KEY }}
           TEMA: ${{ steps.tema.outputs.TEMA }}
+          MINUTOS: ${{ inputs.minutos || '4' }}
         run: node scripts/generar-guion.mjs
 
       - name: Limpiar guion y generar voz
@@ -116,7 +126,7 @@ jobs:
           mkdir -p public/clips-mini
           for f in public/clips/*.mp4; do
             n=$(basename "$f")
-            ffmpeg -y -loglevel error -i "$f" -t 20 -vf "scale=1920:-2" -c:v libx264 -crf 22 -preset veryfast -an "public/clips-mini/$n"
+            ffmpeg -y -loglevel error -stream_loop -1 -i "$f" -t 20 -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080" -c:v libx264 -crf 21 -preset veryfast -an "public/clips-mini/$n"
           done
           rm -rf public/clips
           mv public/clips-mini public/clips
@@ -134,7 +144,7 @@ jobs:
         run: |
           mkdir -p out
           npx remotion render AguaGrifo out/video-final.mp4 \
-            --concurrency=2 \
+            --concurrency=4 \
             --jpeg-quality=95 \
             --crf=21
 
