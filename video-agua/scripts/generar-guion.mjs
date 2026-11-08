@@ -12,8 +12,8 @@ if (!KEY || !TEMA) {
 // Duracion del video en minutos (la manda el workflow). 4 = video normal; 8 o 10 = documental.
 const MINUTOS = Math.min(15, Math.max(3, Number(process.env.MINUTOS) || 4));
 const DOCUMENTAL = MINUTOS >= 7;
-const MIN_PALABRAS = Math.round(MINUTOS * 140);
-const MAX_PALABRAS = Math.round(MINUTOS * 160);
+const MIN_PALABRAS = Math.round(MINUTOS * 150);
+const MAX_PALABRAS = Math.round(MINUTOS * 170);
 const TOMAS_MIN = Math.round((MINUTOS * 60) / 15);
 const TOMAS_MAX = Math.round((MINUTOS * 60) / 11);
 const CLIPS_DISTINTOS = `${Math.round(TOMAS_MIN * 0.5)} y ${Math.round(TOMAS_MAX * 0.6)}`;
@@ -120,10 +120,34 @@ function parsear(texto, etiqueta) {
 
 // ---------- PASO 1: el guion ----------
 
+// El guionista NO debe ver las instrucciones de las plantillas animadas: si las ve,
+// a veces copia ese texto tecnico dentro de la narracion. Solo las usa el plan.
+const TEMA_GUION = TEMA
+  .split(/(?=OBLIGATORIO:)/)
+  .filter((parte) => !/plantilla/i.test(parte))
+  .join('')
+  .replace(/[^.]*plantilla[^.]*\./gi, '')
+  .trim();
+
+// Limpieza del guion: quita cualquier resto de JSON que se haya colado en la narracion
+const limpiarGuion = (t) =>
+  t
+    .replace(/```/g, '')
+    .replace(/^\s*(guion|guión)\s*:?\s*/i, '')
+    .replace(/^\s*(introducci[oó]n|parte\s*\d+|secci[oó]n\s*\d+|cap[ií]tulo\s*\d+)\s*:?.*$/gim, '')
+    .replace(/["“”]?plantilla["“”]?\s*:\s*\{[^}]*\}?/gi, '')
+    .replace(/\{[^}]*\}/g, '')
+    .replace(/["“”]?(tipo|mito|verdad|items|titulo)["“”]\s*:\s*["“”][^"“”]*["“”],?/gi, '')
+    .replace(/[{}"“”]/g, '')
+    .replace(/[#*_]/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
 const promptGuion = `Eres el guionista del canal "Ingeniería Invisible". Explicas ingeniería cotidiana de forma clara y directa, en videos largos de unos ${MINUTOS} minutos, para un público adulto de toda Latinoamérica.${DOCUMENTAL ? '\n\nESTILO DOCUMENTAL: este es un video largo tipo documental. Narra como un buen documental de televisión: con ritmo, curiosidad y pequeños momentos de sorpresa, pero siempre claro y cercano. Divide el contenido en capítulos (los que indique el productor, o de 6 a 8). Cada capítulo empieza con una frase de transición que enganche (por ejemplo: Pero aquí viene lo más sorprendente), explica UNA idea con ejemplos de la vida diaria, y termina dejando una pregunta o una curiosidad que lleve al siguiente. Mezcla la explicación de cómo funciona con historias, datos curiosos y consecuencias prácticas.' : ''}
 
 TEMA E INSTRUCCIONES DEL PRODUCTOR:
-${TEMA}
+${TEMA_GUION}
 
 PRIORIDAD: las instrucciones del productor mandan. Si el tema trae partes, orden, inicio, cierre, frases exactas o reglas OBLIGATORIO, síguelas al pie de la letra, por encima de las reglas generales de abajo.
 
@@ -142,6 +166,7 @@ REGLAS GENERALES:
 - PROHIBIDO inventar porcentajes, estadísticas, fechas o cifras que no vengan en el tema. Si no estás seguro de un dato, no lo pongas.
 - PROHIBIDO una parte de introducción: se arranca directo con el gancho.
 - Al final, una sola línea invitando a suscribirse a Ingeniería Invisible.
+- PROHIBIDO escribir código, JSON, llaves, comillas de campos o instrucciones técnicas: todo lo que escribas lo va a leer la voz en voz alta.
 
 Responde SOLO con el texto del guion. Sin JSON, sin títulos, sin comillas, sin marcas de sección ni números de parte. Solo el texto corrido que va a leer la voz.`;
 
@@ -152,13 +177,7 @@ if (!textoGuion) {
   process.exit(1);
 }
 
-let guion = textoGuion
-  .replace(/```/g, '')
-  .replace(/^\s*(guion|guión)\s*:?\s*/i, '')
-  .replace(/^\s*(introducci[oó]n|parte\s*\d+|secci[oó]n\s*\d+)\s*:?.*$/gim, '')
-  .replace(/[#*_]/g, '')
-  .replace(/\n{3,}/g, '\n\n')
-  .trim();
+let guion = limpiarGuion(textoGuion);
 
 // Si el modelo no respetó el gancho obligatorio, se pone a mano
 if (GANCHO) {
@@ -173,19 +192,20 @@ if (GANCHO) {
 // Si el guion salio muy corto, se pide de nuevo con una correccion (hasta 2 veces)
 for (let intento = 1; intento <= 2; intento++) {
   const n = guion.split(/\s+/).length;
-  if (n >= MIN_PALABRAS * 0.85) break;
+  if (n >= MIN_PALABRAS * 0.9) break;
   console.log(`AVISO: el guion tiene ${n} palabras y el mínimo es ${MIN_PALABRAS}. Pido uno más completo (${intento}/2)...`);
   await esperar(15000);
   const otro = await llamarIA(promptGuion + `\n\nCORRECCIÓN OBLIGATORIA: tu guion anterior tenía solo ${n} palabras y es demasiado corto. Debe tener entre ${MIN_PALABRAS} y ${MAX_PALABRAS} palabras. Desarrolla cada parte con más detalle, ejemplos de la vida diaria y datos del tema, sin relleno ni repeticiones.`, 'guion');
   if (otro) {
-    const limpio2 = otro.replace(/```/g, '').replace(/^\s*(guion|guión)\s*:?\s*/i, '').replace(/^\s*(introducci[oó]n|parte\s*\d+|secci[oó]n\s*\d+|cap[ií]tulo\s*\d+)\s*:?.*$/gim, '').replace(/[#*_]/g, '').replace(/\n{3,}/g, '\n\n').trim();
+    const limpio2 = limpiarGuion(otro);
     if (limpio2.split(/\s+/).length > n) guion = limpio2;
   }
 }
 
 const palabras = guion.split(/\s+/).length;
 console.log(`\nPALABRAS: ${palabras} (aprox ${Math.round(palabras / 2.6)}s de video)`);
-if (palabras < MIN_PALABRAS * 0.85) console.warn('AVISO: el guion salió corto.');
+if (palabras < MIN_PALABRAS * 0.9) console.warn('AVISO: el guion salió corto.');
+if (/plantilla|"tipo"|\{|\}/i.test(guion)) console.warn('AVISO: quedó texto técnico en el guion, revísalo.');
 
 // Pausa corta para no chocar con el limite de solicitudes por minuto
 await esperar(15000);
