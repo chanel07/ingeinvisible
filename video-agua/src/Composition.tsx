@@ -1,3 +1,4 @@
+import React from 'react';
 import {AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 
 export type Caption = {start: number; end: number; text: string};
@@ -27,12 +28,24 @@ const SEGUNDOS_TITULO = 2.6;
 // Se apaga poniendo REMOTION_KARAOKE=no en el workflow.
 const KARAOKE = (process.env.REMOTION_KARAOKE ?? 'si').toLowerCase() !== 'no';
 
-// Modo limpio para Facebook: sin barra de progreso, sin cuadricula, sin marca,
-// sin el puntico de las etiquetas y sin vineta en los bordes. Facebook baja el
-// alcance cuando detecta cosas que parecen marcas de agua o bordes.
-// Se activa con REMOTION_LIMPIO=si.
+// Modo limpio para Facebook: sin barra de progreso, sin cuadricula, sin marca y
+// sin el puntico de las etiquetas. Facebook baja el alcance cuando detecta cosas
+// superpuestas que parecen marcas de agua. Se activa con REMOTION_LIMPIO=si.
 const LIMPIO = (process.env.REMOTION_LIMPIO ?? 'no').toLowerCase() === 'si';
 const PALABRAS_POR_GRUPO = 4;
+
+// Efectos de sonido (archivos en public/sfx/). Suenan bajito para no tapar la voz.
+// Se apagan con REMOTION_SFX=no en el workflow.
+const SFX = (process.env.REMOTION_SFX ?? 'si').toLowerCase() !== 'no';
+const Sfx = ({src, at = 0, vol}: {src: string; at?: number; vol: number}) => {
+  const {fps} = useVideoConfig();
+  if (!SFX) return null;
+  return (
+    <Sequence from={Math.max(0, Math.round(at))} durationInFrames={Math.round(1.5 * fps)} layout="none">
+      <Audio src={staticFile(`sfx/${src}`)} volume={vol} />
+    </Sequence>
+  );
+};
 
 const AMARILLO = '#f5c400';
 const ROJO = '#ff0000';
@@ -133,7 +146,13 @@ const TomaVideo = ({toma, indice, inicio, fin, captions}: {toma: Toma; indice: n
       {listaEtiquetas(toma.etiquetas).map((e, k) => {
         const s = buscarInicio(captions, e.cuando, inicio);
         const seg = Math.max(0, (s ?? inicio + 1) - inicio);
-        return <EtiquetaBox key={k} texto={e.texto} desdeFrame={Math.round(seg * fps)} posicion={k} />;
+        const desdeFrame = Math.round(seg * fps);
+        return (
+          <React.Fragment key={k}>
+            <EtiquetaBox texto={e.texto} desdeFrame={desdeFrame} posicion={k} />
+            <Sfx src="pop.mp3" at={desdeFrame + k * 8} vol={0.16} />
+          </React.Fragment>
+        );
       })}
     </AbsoluteFill>
   );
@@ -202,6 +221,9 @@ const PlantillaMito = ({mito, verdad, dur}: {mito: string; verdad: string; dur: 
 
   return (
     <AbsoluteFill style={{opacity: fundido, background: 'linear-gradient(160deg, #0d1b2a 0%, #1b3a4b 55%, #234e52 100%)'}}>
+      <Sfx src="whoosh.mp3" at={0} vol={0.22} />
+      <Sfx src="tachar.mp3" at={tTachar} vol={0.28} />
+      <Sfx src="ding.mp3" at={tVerdad} vol={0.22} />
       <AbsoluteFill style={{background: `radial-gradient(circle at 50% 30%, rgba(245,196,0,${0.10 + 0.06 * brillo}) 0%, transparent 55%)`}} />
       <AbsoluteFill style={{alignItems: 'center', justifyContent: vertical ? 'flex-start' : 'center', paddingTop: vertical ? '16%' : 0, gap: vertical ? 70 : 34, flexDirection: vertical ? 'column' : 'row'}}>
         <div style={{...tarjeta, opacity: Math.min(1, entraMito) * apagaMito, transform: `translateY(${(1 - entraMito) * -80}px) scale(${0.9 + 0.1 * entraMito})`}}>
@@ -251,6 +273,10 @@ const PlantillaLista = ({titulo, items, dur, inicio, captions}: {titulo?: string
 
   return (
     <AbsoluteFill style={{opacity: fundido, background: 'linear-gradient(160deg, #0d1b2a 0%, #1b2f4b 55%, #2a2350 100%)'}}>
+      <Sfx src="whoosh.mp3" at={0} vol={0.2} />
+      {momentos.map((m, k) => (
+        <Sfx key={`pop${k}`} src="pop.mp3" at={m} vol={0.26} />
+      ))}
       <AbsoluteFill style={{background: `radial-gradient(circle at 50% 25%, rgba(245,196,0,${0.09 + 0.05 * brillo}) 0%, transparent 55%)`}} />
       <AbsoluteFill style={{alignItems: 'center', justifyContent: 'flex-start', paddingTop: vertical ? '12%' : '5%', flexDirection: 'column', gap: vertical ? 26 : 16}}>
         {titulo && (
@@ -481,8 +507,8 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
 
   let contador = 0;
   const secciones = plan
-    // La primera tarjeta nunca sale al inicio: asi el comienzo del video
-    // (que Facebook y YouTube usan como portada) muestra el clip o el titulo limpio
+    // La primera tarjeta nunca sale en el primer segundo: asi el inicio del video
+    // (que Facebook y YouTube usan como portada) muestra el clip limpio
     .map((toma, i) => (toma.seccion ? {titulo: toma.seccion, frame: Math.max(Math.round(inicios[i] * fps), Math.round((TITULO ? SEGUNDOS_TITULO + 0.2 : 1.2) * fps)), numero: ++contador} : null))
     .filter((s): s is {titulo: string; frame: number; numero: number} => s !== null);
 
@@ -520,22 +546,24 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
       {secciones.map((s) => (
         <Sequence key={s.numero} from={s.frame} durationInFrames={Math.round(3 * fps)}>
           <TarjetaSeccion numero={s.numero} titulo={s.titulo} />
+          <Sfx src="whoosh.mp3" at={0} vol={0.2} />
         </Sequence>
       ))}
 
       {TITULO && (
         <Sequence from={0} durationInFrames={Math.round(SEGUNDOS_TITULO * fps)}>
           <TituloInicio />
+          <Sfx src="impacto.mp3" at={0} vol={0.3} />
         </Sequence>
       )}
 
       {!LIMPIO && (
-        <div style={{position: 'absolute', top: 0, left: 0, right: 0, height: 8, background: 'rgba(255,255,255,0.15)'}}>
-          <div style={{width: `${(frame / durationInFrames) * 100}%`, height: '100%', background: AMARILLO}} />
-          {secciones.map((s) => (
-            <div key={s.numero} style={{position: 'absolute', top: 0, left: `${(s.frame / durationInFrames) * 100}%`, width: 4, height: 8, background: '#fff'}} />
-          ))}
-        </div>
+      <div style={{position: 'absolute', top: 0, left: 0, right: 0, height: 8, background: 'rgba(255,255,255,0.15)'}}>
+        <div style={{width: `${(frame / durationInFrames) * 100}%`, height: '100%', background: AMARILLO}} />
+        {secciones.map((s) => (
+          <div key={s.numero} style={{position: 'absolute', top: 0, left: `${(s.frame / durationInFrames) * 100}%`, width: 4, height: 8, background: '#fff'}} />
+        ))}
+      </div>
       )}
 
       {!LIMPIO && (
@@ -557,6 +585,7 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
       {CIERRE && inicioCierre > 4 * fps && (
         <Sequence from={inicioCierre}>
           <CierreCanal />
+          <Sfx src="pop.mp3" at={0} vol={0.25} />
         </Sequence>
       )}
     </AbsoluteFill>
