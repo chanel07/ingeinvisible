@@ -388,6 +388,67 @@ const TituloInicio = () => {
   );
 };
 
+// Palabras clave de colores e iconos en los subtitulos.
+// Se apagan con REMOTION_ICONOS=no en el workflow.
+const ICONOS_ON = (process.env.REMOTION_ICONOS ?? 'si').toLowerCase() !== 'no';
+const normPal = (w: string) => w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+const setDe = (t: string) => new Set(t.split(' ').map(normPal));
+const PAL_PELIGRO = setDe('nunca jamás peligro peligros peligroso peligrosa peligrosos peligrosas explota explotar explotan explosión fuego incendio incendios tóxico tóxica tóxicos tóxicas cuidado error errores mito falso riesgo daña dañar dañarlo quema quemar quemadura descarga cortocircuito veneno');
+const PAL_SOLUCION = setDe('correcto correcta verdad seguro segura solución apaga apágala apagar espera recomendado recomendable protege protegerte tápalo tápala tapa desconecta desconectar ventila lávalo lávala congélalo');
+const PAL_NUMERO = setDe('dos tres cuatro cinco seis siete ocho nueve diez once doce quince veinte treinta cincuenta sesenta cien cientos mil miles millón millones');
+type TipoIcono = 'rayo' | 'fuego' | 'x' | 'check' | 'alerta';
+const ICONO_DE: Record<string, TipoIcono> = {};
+const asignar = (t: string, tipo: TipoIcono) => t.split(' ').forEach((w) => (ICONO_DE[normPal(w)] = tipo));
+asignar('electricidad eléctrico eléctrica eléctricos corriente voltaje rayo rayos chispa chispas relámpago', 'rayo');
+asignar('fuego incendio incendios llama llamas explota explotar explotan explosión quema quemar', 'fuego');
+asignar('nunca jamás mito falso error prohibido', 'x');
+asignar('correcto correcta verdad solución recomendado', 'check');
+asignar('peligro peligroso peligrosa tóxico tóxica cuidado riesgo veneno', 'alerta');
+
+const colorClave = (w: string): string | null => {
+  const n = normPal(w);
+  if (!n) return null;
+  if (/\d/.test(n) || PAL_NUMERO.has(n)) return AMARILLO;
+  if (PAL_PELIGRO.has(n)) return '#ff4d4d';
+  if (PAL_SOLUCION.has(n)) return '#2ecc71';
+  return null;
+};
+
+// Iconos dibujados con codigo (se ven igual en cualquier equipo, sin depender de emojis)
+const IconoClave = ({tipo, size}: {tipo: TipoIcono; size: number}) => {
+  const borde = {stroke: '#000', strokeWidth: 5, strokeLinejoin: 'round' as const};
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" style={{filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.6))'}}>
+      {tipo === 'rayo' && <polygon points="58,4 18,56 46,56 36,96 82,38 54,38 66,4" fill="#ffd400" {...borde} />}
+      {tipo === 'fuego' && (
+        <>
+          <path d="M50 4 C62 26 84 36 84 62 C84 84 68 96 50 96 C32 96 16 84 16 62 C16 46 26 38 32 28 C34 42 40 46 44 46 C42 30 44 18 50 4 Z" fill="#ff5a1f" {...borde} />
+          <path d="M50 46 C58 58 68 64 68 76 C68 88 60 94 50 94 C40 94 32 88 32 76 C32 66 40 62 44 54 C46 62 48 64 50 64 Z" fill="#ffd400" />
+        </>
+      )}
+      {tipo === 'x' && (
+        <>
+          <circle cx="50" cy="50" r="44" fill="#ff3b3b" {...borde} />
+          <path d="M32 32 L68 68 M68 32 L32 68" stroke="#fff" strokeWidth="12" strokeLinecap="round" />
+        </>
+      )}
+      {tipo === 'check' && (
+        <>
+          <circle cx="50" cy="50" r="44" fill="#2ecc71" {...borde} />
+          <path d="M28 52 L44 68 L74 34" stroke="#fff" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </>
+      )}
+      {tipo === 'alerta' && (
+        <>
+          <polygon points="50,6 96,90 4,90" fill="#ffd400" {...borde} />
+          <rect x="45" y="34" width="10" height="32" rx="4" fill="#000" />
+          <circle cx="50" cy="77" r="6" fill="#000" />
+        </>
+      )}
+    </svg>
+  );
+};
+
 // Subtitulo karaoke: muestra grupos de pocas palabras y resalta la que suena.
 // El tiempo de cada palabra se reparte dentro del subtitulo segun su largo,
 // porque la voz habla a ritmo parejo.
@@ -414,20 +475,31 @@ const SubtituloKaraoke = ({cap, t}: {cap: Caption; t: number}) => {
   const visibles = palabras.slice(desde, desde + PALABRAS_POR_GRUPO);
   const pop = spring({frame: frame - Math.round(inicios[actual] * fps), fps, config: {damping: 12, stiffness: 220}});
 
+  // Icono de la palabra que suena (si tiene uno)
+  const tipoIcono = ICONOS_ON ? ICONO_DE[normPal(palabras[actual])] : undefined;
+  const popIcono = spring({frame: frame - Math.round(inicios[actual] * fps), fps, config: {damping: 9, stiffness: 200}});
+
   return (
-    <div style={{position: 'absolute', bottom: '22%', left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 8%'}}>
+    <div style={{position: 'absolute', bottom: '22%', left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 8%'}}>
+      {tipoIcono && (
+        <div style={{marginBottom: 14, transform: `scale(${Math.max(0, popIcono)}) rotate(${(1 - Math.min(1, popIcono)) * -25}deg)`}}>
+          <IconoClave tipo={tipoIcono} size={120} />
+        </div>
+      )}
       <div style={{textAlign: 'center', lineHeight: 1.25, fontSize: 68, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1}}>
         {visibles.map((p, k) => {
           const i = desde + k;
           const activa = i === actual;
+          const clave = ICONOS_ON ? colorClave(p) : null;
           return (
             <span
               key={i}
               style={{
                 display: 'inline-block',
-                margin: '0 10px',
-                color: activa ? AMARILLO : '#fff',
-                transform: activa ? `scale(${1 + 0.14 * pop})` : 'none',
+                margin: '0 12px',
+                color: clave ?? (activa ? AMARILLO : '#fff'),
+                // Las palabras largas crecen menos, para que no se monten sobre las de al lado
+                transform: activa ? `scale(${1 + Math.min(clave ? 0.24 : 0.14, 0.6 / Math.max(1, p.length)) * pop})` : 'none',
                 textShadow: '0 0 14px rgba(0,0,0,0.95), 0 5px 0 #000, 0 -2px 0 #000, 3px 0 0 #000, -3px 0 0 #000',
               }}
             >
