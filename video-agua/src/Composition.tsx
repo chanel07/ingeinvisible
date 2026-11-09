@@ -47,6 +47,12 @@ const Sfx = ({src, at = 0, vol}: {src: string; at?: number; vol: number}) => {
   );
 };
 
+// Musica de fondo (archivo en public/musica/). La elige el workflow al azar con
+// REMOTION_MUSICA. Si viene vacio, el video sale sin musica.
+const MUSICA = (process.env.REMOTION_MUSICA ?? '').trim();
+const MUSICA_PAUSA = 0.16; // volumen cuando la voz no habla
+const MUSICA_VOZ = 0.08; // volumen mientras la voz habla
+
 const AMARILLO = '#f5c400';
 const ROJO = '#ff0000';
 const OSCURO = '#0a1217';
@@ -520,6 +526,25 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
   return (
     <AbsoluteFill style={{backgroundColor: OSCURO, fontFamily: 'Arial, sans-serif'}}>
       <Audio src={staticFile('voz.mp3')} />
+      {MUSICA && (
+        <Audio
+          src={staticFile(`musica/${MUSICA}`)}
+          loop
+          volume={(f) => {
+            // Cuanto de la ventana cercana tiene voz: asi la musica baja y sube suave
+            const tt = f / fps;
+            let habla = 0;
+            for (let k = -3; k <= 3; k++) {
+              const x = tt + k * 0.1;
+              if (captions.some((c) => x >= c.start && x < c.end)) habla++;
+            }
+            const base = MUSICA_PAUSA - (MUSICA_PAUSA - MUSICA_VOZ) * (habla / 7);
+            const entra = interpolate(f, [0, fps], [0, 1], fijo);
+            const sale = interpolate(f, [durationInFrames - 2 * fps, durationInFrames], [1, 0], fijo);
+            return base * entra * sale;
+          }}
+        />
+      )}
 
       {plan.map((toma, i) => {
         const desde = Math.round(inicios[i] * fps);
