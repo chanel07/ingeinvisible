@@ -25,6 +25,6 @@
 [x] El primer celular que tuviste
 [x] Así era hacer tareas sin internet
 [x] Las caricaturas de la mañana antes del colegio
-Cosas que tus papás te decían de niño
+[x] Cosas que tus papás te decían de niño
 El Game Boy y las horas sin cargador
 Así era la Navidad en los 90
