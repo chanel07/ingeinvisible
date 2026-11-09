@@ -4,7 +4,7 @@
 [x] Qué hay debajo de la calle que pisas
 [x] Cómo funciona una nevera explicado sencillo
 [x] Por qué los aviones pueden volar siendo tan pesados
-Cómo llega la electricidad desde la planta hasta tu enchufe
+[x] Cómo llega la electricidad desde la planta hasta tu enchufe
 Cómo funciona el alcantarillado de una ciudad
 Por qué los edificios no se hunden en el suelo
 Cómo se construye un túnel bajo una montaña
