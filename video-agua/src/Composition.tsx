@@ -50,8 +50,8 @@ const Sfx = ({src, at = 0, vol}: {src: string; at?: number; vol: number}) => {
 // Musica de fondo (archivo en public/musica/). La elige el workflow al azar con
 // REMOTION_MUSICA. Si viene vacio, el video sale sin musica.
 const MUSICA = (process.env.REMOTION_MUSICA ?? '').trim();
-const MUSICA_PAUSA = 0.16; // volumen cuando la voz no habla
-const MUSICA_VOZ = 0.08; // volumen mientras la voz habla
+const MUSICA_PAUSA = 0.32; // volumen cuando la voz no habla
+const MUSICA_VOZ = 0.2; // volumen mientras la voz habla
 
 // Ritmo visual: barrido entre clips y golpe de zoom en las palabras clave.
 // Se apagan con REMOTION_BARRIDO=no y REMOTION_GOLPES=no en el workflow.
@@ -108,7 +108,7 @@ const buscarInicio = (captions: Caption[], frase: string | undefined, desde: num
   if (pos >= 0) return ubicar(pos);
 
   const palabras = f.split(' ');
-  for (let corte = palabras.length - 1; corte >= 2; corte--) {
+  for (let corte = palabras.length - 1; corte >= 3; corte--) {
     const p = acumulado.indexOf(palabras.slice(0, corte).join(' '));
     if (p >= 0) return ubicar(p);
   }
@@ -616,7 +616,8 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
   // 4) Freno: si alguna toma queda muchisimo mas larga de lo normal (porque no se
   // encontraron las frases del guion), el clip se congela y las demas tomas se
   // amontonan al final. En ese caso se reparten todas las tomas de forma pareja.
-  if (plan.length > 1) {
+  // Solo en videos cortos: en los largos, repartir todo de nuevo desfasa las imagenes de la voz.
+  if (plan.length > 1 && total <= 90) {
     const promedio = total / plan.length;
     const limite = Math.max(8, promedio * 2.5);
     const duraciones = inicios.map((v, i) => (i + 1 < inicios.length ? inicios[i + 1] : total) - v);
