@@ -53,6 +53,12 @@ const MUSICA = (process.env.REMOTION_MUSICA ?? '').trim();
 const MUSICA_PAUSA = 0.16; // volumen cuando la voz no habla
 const MUSICA_VOZ = 0.08; // volumen mientras la voz habla
 
+// Ritmo visual: barrido entre clips y golpe de zoom en las palabras clave.
+// Se apagan con REMOTION_BARRIDO=no y REMOTION_GOLPES=no en el workflow.
+const BARRIDO = (process.env.REMOTION_BARRIDO ?? 'si').toLowerCase() !== 'no';
+const GOLPES = (process.env.REMOTION_GOLPES ?? 'si').toLowerCase() !== 'no';
+const BARRIDO_FRAMES = 9;
+
 const AMARILLO = '#f5c400';
 const ROJO = '#ff0000';
 const OSCURO = '#0a1217';
@@ -132,12 +138,20 @@ const TomaVideo = ({toma, indice, inicio, fin, captions}: {toma: Toma; indice: n
   const dur = Math.max(1, (fin - inicio) * fps + FUNDIDO);
   // La PRIMERA toma entra sin fundido: si no, el fotograma cero sale negro
   // y ese es el que Facebook y YouTube usan como portada del video.
-  const opacidad = indice === 0 ? 1 : interpolate(frame, [0, FUNDIDO], [0, 1], fijo);
   const zoom = interpolate(frame, [0, dur], indice % 2 === 0 ? [1.05, 1.18] : [1.18, 1.05], fijo);
   const mover = interpolate(frame, [0, dur], indice % 2 === 0 ? [-25, 25] : [25, -25], fijo);
 
+  // Entrada: la primera toma aparece de una vez; las demas entran con un barrido
+  // rapido desde un lado (o con fundido si se apago el barrido en el workflow).
+  const entrada = indice === 0 ? 1 : interpolate(frame, [0, BARRIDO_FRAMES], [0, 1], {...fijo, easing: (x) => 1 - Math.pow(1 - x, 3)});
+  const lado = indice % 2 === 0 ? 1 : -1;
+  const estiloEntrada = BARRIDO && indice > 0
+    ? {transform: `translateX(${(1 - entrada) * 100 * lado}%)`, filter: entrada < 1 ? `blur(${(1 - entrada) * 14}px)` : 'none'}
+    : {opacity: indice === 0 ? 1 : interpolate(frame, [0, FUNDIDO], [0, 1], fijo)};
+
   return (
-    <AbsoluteFill style={{opacity: opacidad, overflow: 'hidden'}}>
+    <AbsoluteFill style={{...estiloEntrada, overflow: 'hidden'}}>
+      {BARRIDO && indice > 0 && <Sfx src="whoosh.mp3" at={0} vol={0.09} />}
       <AbsoluteFill style={{transform: `scale(${zoom}) translateX(${mover}px)`}}>
         {/* Imagen de respaldo debajo del primer clip: el video tarda casi un
             segundo en decodificar y mientras tanto se veia negro. */}
@@ -449,6 +463,34 @@ const IconoClave = ({tipo, size}: {tipo: TipoIcono; size: number}) => {
   );
 };
 
+// Momento en que suena cada palabra dentro de un subtitulo (reparto segun su largo)
+const tiemposPalabras = (cap: Caption) => {
+  const palabras = cap.text.split(/\s+/).filter(Boolean);
+  const pesos = palabras.map((p) => p.replace(/[^\p{L}\p{N}]/gu, '').length + 2);
+  const totalPeso = pesos.reduce((a, b) => a + b, 0) || 1;
+  const dur = Math.max(0.01, cap.end - cap.start);
+  let acumulado = 0;
+  return palabras.map((w, i) => {
+    const start = cap.start + (dur * acumulado) / totalPeso;
+    acumulado += pesos[i];
+    return {w, start};
+  });
+};
+
+// Instantes de los golpes de zoom: palabras rojas o verdes, con al menos 1,2 s entre golpes
+const momentosGolpe = (captions: Caption[]) => {
+  const salida: number[] = [];
+  for (const cap of captions) {
+    for (const {w, start} of tiemposPalabras(cap)) {
+      const n = normPal(w);
+      if (!PAL_PELIGRO.has(n) && !PAL_SOLUCION.has(n)) continue;
+      if (salida.length && start - salida[salida.length - 1] < 1.2) continue;
+      salida.push(start);
+    }
+  }
+  return salida;
+};
+
 // Subtitulo karaoke: muestra grupos de pocas palabras y resalta la que suena.
 // El tiempo de cada palabra se reparte dentro del subtitulo segun su largo,
 // porque la voz habla a ritmo parejo.
@@ -595,6 +637,19 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
 
   const inicioCierre = durationInFrames - Math.round(2.5 * fps);
 
+  // Golpe de zoom con un pequeño temblor cuando suena una palabra clave
+  let golpe = 0;
+  let temblor = 0;
+  if (GOLPES) {
+    for (const g of momentosGolpe(captions)) {
+      const d = frame - Math.round(g * fps);
+      if (d < 0 || d > 12) continue;
+      const k = Math.pow(1 - d / 12, 2);
+      golpe = Math.max(golpe, 0.07 * k);
+      temblor = Math.sin(d * 2.4) * 7 * k;
+    }
+  }
+
   return (
     <AbsoluteFill style={{backgroundColor: OSCURO, fontFamily: 'Arial, sans-serif'}}>
       <Audio src={staticFile('voz.mp3')} />
@@ -618,6 +673,7 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
         />
       )}
 
+      <AbsoluteFill style={{transform: `scale(${1 + golpe}) translate(${temblor}px, ${-temblor * 0.6}px)`}}>
       {plan.map((toma, i) => {
         const desde = Math.round(inicios[i] * fps);
         const hasta = i + 1 < plan.length ? Math.round(inicios[i + 1] * fps) : durationInFrames;
@@ -634,6 +690,7 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
           </Sequence>
         );
       })}
+      </AbsoluteFill>
 
       {/* En modo limpio no hay vineta: Facebook la detecta como un borde visible */}
       {!LIMPIO && <AbsoluteFill style={{background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)'}} />}
