@@ -160,6 +160,16 @@ jobs:
           done
           echo "Efectos de sonido: $SFX_OK"
           export REMOTION_SFX="$SFX_OK"
+          # Musica de fondo: una canción al azar de public/musica/ (si no hay, sale sin música)
+          MUSICA=""
+          if ls public/musica/*.mp3 >/dev/null 2>&1; then
+            ELEGIDA=$(ls public/musica/*.mp3 | shuf -n 1)
+            echo "Canción elegida: $(basename "$ELEGIDA")"
+            # Se iguala el volumen de todas las canciones, porque unas vienen más fuertes que otras
+            ffmpeg -y -loglevel error -i "$ELEGIDA" -af loudnorm=I=-16:TP=-1.5:LRA=11 -ar 44100 -b:a 192k public/musica/fondo.mp3 && MUSICA=fondo.mp3
+          fi
+          echo "Música de fondo: ${MUSICA:-ninguna}"
+          export REMOTION_MUSICA="$MUSICA"
           npx remotion render AguaGrifo out/video-final.mp4 \
             --concurrency=4 \
             --jpeg-quality=95 \
