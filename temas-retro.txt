@@ -26,5 +26,5 @@
 [x] Así era hacer tareas sin internet
 [x] Las caricaturas de la mañana antes del colegio
 [x] Cosas que tus papás te decían de niño
-El Game Boy y las horas sin cargador
+[x] El Game Boy y las horas sin cargador
 Así era la Navidad en los 90
