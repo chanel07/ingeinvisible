@@ -146,7 +146,7 @@ REGLAS DEL GUION:
 - No exageres el peligro. Si algo es raro, dilo como raro.
 
 REGLAS DEL PLAN DE TOMAS:
-- Entre 4 y 7 tomas, en el orden del guion.
+- Entre 7 y 9 tomas, en el orden del guion. Cada toma dura de 2 a 4 segundos: cambia de clip seguido para que el video tenga ritmo, y usa una búsqueda distinta en cada toma.
 - "desde": frase EXACTA de 3 a 6 palabras copiada del guion donde empieza esa toma. La primera toma lleva "desde": "".
 - "clip": nombre único en español con guiones, terminado en .mp4 (por ejemplo cable-caliente.mp4).
 - "buscar": búsqueda en INGLÉS para video de stock, concreta y visual, del objeto exacto que se nombra en esa parte (por ejemplo "gas stove flame", no "danger"). Si el productor dio búsquedas, úsalas. NUNCA uses subscribe, thank you, intro, outro, youtube ni texto.
@@ -292,11 +292,11 @@ function normalizarPlan(plan) {
         .slice(0, 1)
         .map((e) => ({texto: e.texto.trim(), ...(e.cuando ? {cuando: String(e.cuando)} : {})}));
 
-      // Plantilla animada (mito o lista): si viene bien formada, se conserva tal cual
+      // Plantilla animada (mito, lista o sí/no): si viene bien formada, se conserva tal cual
       const p = t.plantilla;
       const plantillaOk =
         p && typeof p === 'object' && typeof p.tipo === 'string' &&
-        ((p.tipo === 'mito' && p.mito && p.verdad) || (p.tipo === 'lista' && Array.isArray(p.items) && p.items.length));
+        ((p.tipo === 'mito' && p.mito && p.verdad) || (p.tipo === 'lista' && Array.isArray(p.items) && p.items.length) || (p.tipo === 'sino' && (Array.isArray(p.si) || Array.isArray(p.no))));
       if (p && !plantillaOk) console.log(`  toma ${i + 1}: la plantilla vino incompleta y no se usa`);
 
       return {desde: i === 0 ? '' : String(t.desde ?? ''), clip: `${clip}.mp4`, buscar, etiquetas: plantillaOk ? [] : etiquetas, ...(plantillaOk ? {plantilla: p} : {})};
