@@ -27,4 +27,4 @@
 [x] Las caricaturas de la mañana antes del colegio
 [x] Cosas que tus papás te decían de niño
 [x] El Game Boy y las horas sin cargador
-Así era la Navidad en los 90
+[x] Así era la Navidad en los 90
