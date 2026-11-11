@@ -22,7 +22,13 @@ const palabrasClave = (q) => [...new Set(q.toLowerCase().replace(/[^a-z ]/g, ' '
 // Videos raros que no queremos: hechos con IA, animados, de fantasia o disfrazados.
 // Los bancos gratuitos tienen cada vez mas de estos y se ven falsos en un video real.
 const RAROS = /\b(ai|a\.i\.|generated|artificial intelligence|anthropomorphic|humanoid|cartoon|animation|animated|3d|render|rendering|cgi|fantasy|surreal|costume|mask|illustration|digital art|midjourney|stable diffusion)\b/i;
-const esRaro = (descripcion) => RAROS.test(String(descripcion).toLowerCase().replace(/[-_/]+/g, ' '));
+// Contenido de moda, sensual o con poca ropa: nunca entra, en ningun canal.
+// Pexels no tiene filtro de contenido sensible para videos, por eso se revisa la descripcion.
+const SENSIBLE = /\b(model|models|modeling|modelling|fashion|posing|pose|poses|photoshoot|photo shoot|glamour|glamorous|beauty|lingerie|underwear|bikini|bikinis|swimsuit|swimsuits|swimwear|bathing suit|sexy|sensual|seductive|nude|naked|topless|erotic|boudoir|bra|panties|thong|fur coat|faux fur|legs|thighs|buttocks|cleavage|provocative|hot girl|hot woman)\b/i;
+const esRaro = (descripcion) => {
+  const t = String(descripcion).toLowerCase().replace(/[-_/]+/g, ' ');
+  return RAROS.test(t) || SENSIBLE.test(t);
+};
 
 // Palabra obligatoria (opcional). En los videos de perros el workflow pone
 // CLIPS_OBLIGATORIA=dog|puppy, y asi ningun clip entra si no tiene un perro.
@@ -122,7 +128,7 @@ const buscarVideoPexels = async (q, estricto, orientacion = VERTICAL ? 'portrait
       .sort((a, b) => (orientacion === 'portrait' ? b.height - a.height : b.width - a.width));
     if (archivos.length) {
       const f = archivos[0];
-      return {id: `v${v.id}`, link: f.link, info: `Pexels video ${f.width}x${f.height} ${v.duration}s${estricto ? '' : ', SIN COINCIDIR'}`, fuente: 'pexels', estricto};
+      return {id: `v${v.id}`, link: f.link, info: `Pexels video ${f.width}x${f.height} ${v.duration}s${estricto ? '' : ', SIN COINCIDIR'} | ${v.url ?? ''}`, fuente: 'pexels', estricto};
     }
   }
   return null;
@@ -135,7 +141,7 @@ const buscarFotoPexels = async (q, estricto) => {
     if (esRaro(`${p.alt ?? ''} ${p.url ?? ''}`) || otroAnimal(`${p.alt ?? ''} ${p.url ?? ''}`)) continue;
     if (estricto && !coincide(q, `${p.alt ?? ''} ${p.url ?? ''}`)) continue;
     const link = p.src?.large2x || p.src?.original;
-    if (link) return {id: `f${p.id}`, link, info: `Pexels FOTO${estricto ? '' : ', SIN COINCIDIR'}`, foto: true, estricto};
+    if (link) return {id: `f${p.id}`, link, info: `Pexels FOTO${estricto ? '' : ', SIN COINCIDIR'} | ${p.url ?? ''}`, foto: true, estricto};
   }
   return null;
 };
@@ -156,7 +162,7 @@ const buscarVideoPixabay = async (q, estricto) => {
       .sort((a, b) => (VERTICAL ? (b.height > b.width) - (a.height > a.width) : 0));
     if (opciones.length) {
       const f = opciones[0];
-      return {id: `x${v.id}`, link: f.url, info: `Pixabay video ${f.width}px ${v.duration}s${estricto ? '' : ', SIN COINCIDIR'}`, fuente: 'pixabay', estricto};
+      return {id: `x${v.id}`, link: f.url, info: `Pixabay video ${f.width}px ${v.duration}s${estricto ? '' : ', SIN COINCIDIR'} | ${v.pageURL ?? ''}`, fuente: 'pixabay', estricto};
     }
   }
   return null;
