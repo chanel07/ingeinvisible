@@ -4,7 +4,7 @@ import {AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, interpolate, spring,
 export type Caption = {start: number; end: number; text: string};
 export type Etiqueta = {texto: string; cuando?: string};
 export type ItemLista = string | {texto: string; cuando?: string};
-export type Plantilla = {tipo: string; mito?: string; verdad?: string; titulo?: string; items?: ItemLista[]};
+export type Plantilla = {tipo: string; mito?: string; verdad?: string; titulo?: string; items?: ItemLista[]; si?: ItemLista[]; no?: ItemLista[]; tituloSi?: string; tituloNo?: string};
 export type Toma = {desde: string; clip: string; buscar: string; seccion?: string; etiquetas?: unknown; plantilla?: Plantilla};
 export type VideoProps = {captions: Caption[]; plan: Toma[]};
 
@@ -22,7 +22,7 @@ const CIERRE = process.env.REMOTION_CIERRE ?? (process.env.REMOTION_MARCA ? '' :
 // Titulo grande de los primeros segundos (la pregunta del video).
 // Lo pasa el workflow con REMOTION_TITULO. Si viene vacio, no se muestra.
 const TITULO = (process.env.REMOTION_TITULO ?? '').replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
-const SEGUNDOS_TITULO = 2.6;
+const SEGUNDOS_TITULO = Number(process.env.REMOTION_TITULO_SEG ?? 2.6) || 2.6;
 
 // Subtitulos tipo karaoke: la palabra que se esta diciendo se pinta de amarillo.
 // Se apaga poniendo REMOTION_KARAOKE=no en el workflow.
@@ -336,6 +336,79 @@ const PlantillaLista = ({titulo, items, dur, inicio, captions}: {titulo?: string
   );
 };
 
+// Plantilla animada "SÍ o NO": pantalla partida, lo que SÍ en verde y lo que NO en rojo.
+// Cada punto entra cuando la voz lo dice (si trae "cuando"); si no, primero los del SÍ y luego los del NO.
+const PlantillaSiNo = ({titulo, si, no, tituloSi, tituloNo, dur, inicio, captions}: {titulo?: string; si: ItemLista[]; no: ItemLista[]; tituloSi?: string; tituloNo?: string; dur: number; inicio: number; captions: Caption[]}) => {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const vertical = height > width;
+  const aItems = (l: ItemLista[]) => l.map((it) => (typeof it === 'string' ? {texto: it} : it)).filter((it) => it && it.texto);
+  const listaSi = aItems(si);
+  const listaNo = aItems(no);
+  const n = Math.max(1, listaSi.length + listaNo.length);
+  const base = (vertical ? width * 0.05 : height * 0.055) * (Math.max(listaSi.length, listaNo.length) > 4 ? 0.85 : 1);
+
+  const margen = Math.round(0.4 * fps);
+  const paso = Math.max(1, Math.floor((dur - margen * 2) / n));
+  const momento = (it: {texto: string; cuando?: string}, k: number) => {
+    const s = buscarInicio(captions, it.cuando, inicio);
+    const f = s !== null ? Math.round((s - inicio) * fps) : margen + k * paso;
+    return Math.max(0, Math.min(dur - 6, f));
+  };
+  const momentosSi = listaSi.map((it, k) => momento(it, k));
+  const momentosNo = listaNo.map((it, k) => momento(it, listaSi.length + k));
+
+  const fundido = interpolate(frame, [0, FUNDIDO], [0, 1], fijo);
+  const entra = spring({frame, fps, config: {damping: 14, stiffness: 120}});
+  const brillo = 0.5 + 0.5 * Math.sin(frame / 18);
+
+  const columna = (lista: {texto: string}[], momentos: number[], esSi: boolean, cabecera: string) => {
+    const color = esSi ? VERDE : ROJO_MITO;
+    return (
+      <div style={{flex: 1, display: 'flex', flexDirection: 'column', gap: vertical ? 18 : 12, padding: vertical ? '22px 16px' : '18px 22px', borderRadius: 30, background: esSi ? 'rgba(46,204,113,0.14)' : 'rgba(255,77,77,0.14)', boxShadow: `0 0 0 4px ${color}55`, opacity: entra, transform: `translateY(${(1 - entra) * 60}px)`}}>
+        <div style={{alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 12, background: color, color: '#fff', fontWeight: 900, fontSize: base * 1.05, letterSpacing: 3, padding: '8px 26px', borderRadius: 999, marginBottom: 6, boxShadow: '0 8px 20px rgba(0,0,0,0.35)'}}>
+          <IconoClave tipo={esSi ? 'check' : 'x'} size={base * 1.2} />
+          {cabecera}
+        </div>
+        {lista.map((it, k) => {
+          if (frame < momentos[k]) return null;
+          const sp = spring({frame: frame - momentos[k], fps, config: {damping: 12, stiffness: 160}});
+          return (
+            <div key={k} style={{display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(0,0,0,0.35)', borderRadius: 20, padding: vertical ? '14px 14px' : '12px 18px', transform: `scale(${0.7 + 0.3 * Math.min(1, sp)})`, opacity: Math.min(1, sp)}}>
+              <div style={{flex: '0 0 auto', width: base * 0.45, height: base * 0.45, borderRadius: '50%', background: color}} />
+              <div style={{color: '#fff', fontWeight: 900, fontSize: it.texto.length > 18 ? base * 0.78 : base * 0.9, lineHeight: 1.1}}>{it.texto}</div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  return (
+    <AbsoluteFill style={{opacity: fundido, background: 'linear-gradient(160deg, #0d1b2a 0%, #1b2f4b 50%, #3a1f4b 100%)'}}>
+      <Sfx src="whoosh.mp3" at={0} vol={0.2} />
+      {momentosSi.map((m, k) => (
+        <Sfx key={`si${k}`} src="ding.mp3" at={m} vol={0.16} />
+      ))}
+      {momentosNo.map((m, k) => (
+        <Sfx key={`no${k}`} src="pop.mp3" at={m} vol={0.26} />
+      ))}
+      <AbsoluteFill style={{background: `radial-gradient(circle at 50% 20%, rgba(245,196,0,${0.08 + 0.05 * brillo}) 0%, transparent 55%)`}} />
+      <AbsoluteFill style={{alignItems: 'center', justifyContent: 'flex-start', paddingTop: vertical ? '11%' : '5%', flexDirection: 'column', gap: vertical ? 26 : 16}}>
+        {titulo && (
+          <div style={{color: AMARILLO, fontWeight: 900, fontSize: base * 1.25, textTransform: 'uppercase', letterSpacing: 2, textAlign: 'center', width: '88%', opacity: entra, textShadow: '0 6px 24px rgba(0,0,0,0.6)'}}>
+            {titulo}
+          </div>
+        )}
+        <div style={{display: 'flex', gap: vertical ? 18 : 30, width: vertical ? '92%' : '80%'}}>
+          {columna(listaSi, momentosSi, true, tituloSi || 'SÍ')}
+          {columna(listaNo, momentosNo, false, tituloNo || 'NO')}
+        </div>
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
 const TarjetaSeccion = ({numero, titulo}: {numero: number; titulo: string}) => {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
@@ -410,7 +483,7 @@ const setDe = (t: string) => new Set(t.split(' ').map(normPal));
 const PAL_PELIGRO = setDe('nunca jamás peligro peligros peligroso peligrosa peligrosos peligrosas explota explotar explotan explosión fuego incendio incendios tóxico tóxica tóxicos tóxicas cuidado error errores mito falso riesgo daña dañar dañarlo quema quemar quemadura descarga cortocircuito veneno');
 const PAL_SOLUCION = setDe('correcto correcta verdad seguro segura solución apaga apágala apagar espera recomendado recomendable protege protegerte tápalo tápala tapa desconecta desconectar ventila lávalo lávala congélalo');
 const PAL_NUMERO = setDe('dos tres cuatro cinco seis siete ocho nueve diez once doce quince veinte treinta cincuenta sesenta cien cientos mil miles millón millones');
-type TipoIcono = 'rayo' | 'fuego' | 'x' | 'check' | 'alerta';
+type TipoIcono = 'rayo' | 'fuego' | 'x' | 'check' | 'alerta' | 'huella' | 'corazon' | 'hueso' | 'cruz' | 'gota';
 const ICONO_DE: Record<string, TipoIcono> = {};
 const asignar = (t: string, tipo: TipoIcono) => t.split(' ').forEach((w) => (ICONO_DE[normPal(w)] = tipo));
 asignar('electricidad eléctrico eléctrica eléctricos corriente voltaje rayo rayos chispa chispas relámpago', 'rayo');
@@ -418,6 +491,11 @@ asignar('fuego incendio incendios llama llamas explota explotar explotan explosi
 asignar('nunca jamás mito falso error prohibido', 'x');
 asignar('correcto correcta verdad solución recomendado', 'check');
 asignar('peligro peligroso peligrosa tóxico tóxica cuidado riesgo veneno', 'alerta');
+asignar('perro perros perrito perrita perritos cachorro cachorros cachorrita mascota mascotas huella', 'huella');
+asignar('quiere quieren querer amor ama aman feliz felices cariño cariñoso abrazo', 'corazon');
+asignar('comida comer come comen alimento alimentos croquetas hueso', 'hueso');
+asignar('veterinario veterinaria veterinarios enfermo enferma enfermedad salud', 'cruz');
+asignar('agua tomar bebe beber hidratado sed', 'gota');
 
 const colorClave = (w: string): string | null => {
   const n = normPal(w);
@@ -459,6 +537,40 @@ const IconoClave = ({tipo, size}: {tipo: TipoIcono; size: number}) => {
           <circle cx="50" cy="77" r="6" fill="#000" />
         </>
       )}
+      {tipo === 'huella' && (
+        <>
+          <ellipse cx="50" cy="66" rx="24" ry="20" fill="#8b5a2b" {...borde} />
+          <ellipse cx="24" cy="40" rx="10" ry="13" fill="#8b5a2b" {...borde} />
+          <ellipse cx="42" cy="26" rx="10" ry="13" fill="#8b5a2b" {...borde} />
+          <ellipse cx="60" cy="26" rx="10" ry="13" fill="#8b5a2b" {...borde} />
+          <ellipse cx="77" cy="40" rx="10" ry="13" fill="#8b5a2b" {...borde} />
+        </>
+      )}
+      {tipo === 'corazon' && (
+        <path d="M50 90 C20 68 6 50 6 32 C6 18 17 8 30 8 C39 8 46 13 50 20 C54 13 61 8 70 8 C83 8 94 18 94 32 C94 50 80 68 50 90 Z" fill="#ff3b6b" {...borde} />
+      )}
+      {tipo === 'hueso' && (
+        <g transform="rotate(-30 50 50)">
+          <rect x="24" y="40" width="52" height="20" rx="6" fill="#fff3dc" {...borde} />
+          <circle cx="22" cy="38" r="11" fill="#fff3dc" {...borde} />
+          <circle cx="22" cy="62" r="11" fill="#fff3dc" {...borde} />
+          <circle cx="78" cy="38" r="11" fill="#fff3dc" {...borde} />
+          <circle cx="78" cy="62" r="11" fill="#fff3dc" {...borde} />
+          <rect x="26" y="43" width="48" height="14" fill="#fff3dc" />
+        </g>
+      )}
+      {tipo === 'cruz' && (
+        <>
+          <circle cx="50" cy="50" r="44" fill="#fff" {...borde} />
+          <path d="M40 22 H60 V40 H78 V60 H60 V78 H40 V60 H22 V40 H40 Z" fill="#ff3b3b" stroke="#000" strokeWidth="3" />
+        </>
+      )}
+      {tipo === 'gota' && (
+        <>
+          <path d="M50 6 C66 30 82 48 82 66 C82 84 68 96 50 96 C32 96 18 84 18 66 C18 48 34 30 50 6 Z" fill="#33b8ff" {...borde} />
+          <ellipse cx="38" cy="62" rx="7" ry="12" fill="#ffffff" opacity="0.6" />
+        </>
+      )}
     </svg>
   );
 };
@@ -491,10 +603,27 @@ const momentosGolpe = (captions: Caption[]) => {
   return salida;
 };
 
+// Que iconos se muestran: el mismo tipo de icono no se repite en menos de 4 segundos,
+// para que en un video de perros la huella no salga en cada frase.
+const iconosPermitidos = (captions: Caption[]) => {
+  const ultimo: Record<string, number> = {};
+  const permitidos = new Set<string>();
+  for (const cap of captions) {
+    tiemposPalabras(cap).forEach(({w, start}, i) => {
+      const tipo = ICONO_DE[normPal(w)];
+      if (!tipo) return;
+      if (ultimo[tipo] !== undefined && start - ultimo[tipo] < 4) return;
+      ultimo[tipo] = start;
+      permitidos.add(`${cap.start}-${i}`);
+    });
+  }
+  return permitidos;
+};
+
 // Subtitulo karaoke: muestra grupos de pocas palabras y resalta la que suena.
 // El tiempo de cada palabra se reparte dentro del subtitulo segun su largo,
 // porque la voz habla a ritmo parejo.
-const SubtituloKaraoke = ({cap, t}: {cap: Caption; t: number}) => {
+const SubtituloKaraoke = ({cap, t, permitidos}: {cap: Caption; t: number; permitidos: Set<string>}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const palabras = cap.text.split(/\s+/).filter(Boolean);
@@ -518,7 +647,7 @@ const SubtituloKaraoke = ({cap, t}: {cap: Caption; t: number}) => {
   const pop = spring({frame: frame - Math.round(inicios[actual] * fps), fps, config: {damping: 12, stiffness: 220}});
 
   // Icono de la palabra que suena (si tiene uno)
-  const tipoIcono = ICONOS_ON ? ICONO_DE[normPal(palabras[actual])] : undefined;
+  const tipoIcono = ICONOS_ON && permitidos.has(`${cap.start}-${actual}`) ? ICONO_DE[normPal(palabras[actual])] : undefined;
   const popIcono = spring({frame: frame - Math.round(inicios[actual] * fps), fps, config: {damping: 9, stiffness: 200}});
 
   return (
@@ -685,6 +814,8 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
               <PlantillaMito mito={toma.plantilla.mito} verdad={toma.plantilla.verdad} dur={hasta - desde} />
             ) : toma.plantilla?.tipo === 'lista' && toma.plantilla.items?.length ? (
               <PlantillaLista titulo={toma.plantilla.titulo} items={toma.plantilla.items} dur={hasta - desde} inicio={inicios[i]} captions={captions} />
+            ) : toma.plantilla?.tipo === 'sino' && ((toma.plantilla.si?.length ?? 0) + (toma.plantilla.no?.length ?? 0)) > 0 ? (
+              <PlantillaSiNo titulo={toma.plantilla.titulo} si={toma.plantilla.si ?? []} no={toma.plantilla.no ?? []} tituloSi={toma.plantilla.tituloSi} tituloNo={toma.plantilla.tituloNo} dur={hasta - desde} inicio={inicios[i]} captions={captions} />
             ) : (
               <TomaVideo toma={toma} indice={i} inicio={inicios[i]} fin={hasta / fps} captions={captions} />
             )}
@@ -727,7 +858,7 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
         </div>
       )}
 
-      {actual && KARAOKE && <SubtituloKaraoke cap={actual} t={t} />}
+      {actual && KARAOKE && <SubtituloKaraoke cap={actual} t={t} permitidos={iconosPermitidos(captions)} />}
 
       {actual && !KARAOKE && (
         <div style={{position: 'absolute', bottom: '22%', left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 12%'}}>
