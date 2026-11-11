@@ -755,6 +755,29 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
     }
   }
 
+  // 5) Las plantillas no se cortan: si la toma siguiente empieza antes de que aparezca
+  // el ultimo punto de la lista (o del si/no), se corre para despues de ese punto.
+  plan.forEach((toma, i) => {
+    if (i + 1 >= plan.length) return;
+    const p = toma.plantilla;
+    let fin = -1;
+    if (p?.tipo === 'lista' || p?.tipo === 'sino') {
+      const items = [...(p.items ?? []), ...(p.si ?? []), ...(p.no ?? [])].map((it) => (typeof it === 'string' ? {texto: it} : it));
+      for (const it of items) {
+        const s = buscarInicio(captions, it.cuando, inicios[i]);
+        if (s !== null) fin = Math.max(fin, s);
+      }
+      if (fin < 0) fin = inicios[i] + Math.max(4, items.length * 1.2);
+      fin += 1.8;
+    } else if (p?.tipo === 'mito') {
+      fin = inicios[i] + 4;
+    }
+    if (fin > inicios[i + 1]) {
+      const limite = i + 2 < plan.length ? inicios[i + 2] - 1 : total - 1;
+      inicios[i + 1] = Math.max(inicios[i + 1], Math.min(fin, limite));
+    }
+  });
+
   let contador = 0;
   const secciones = plan
     // La primera tarjeta nunca sale en el primer segundo: asi el inicio del video
