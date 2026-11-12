@@ -12,8 +12,8 @@ if (!KEY || !TEMA) {
 // Duracion del video en minutos (la manda el workflow). 4 = video normal; 8 o 10 = documental.
 const MINUTOS = Math.min(15, Math.max(3, Number(process.env.MINUTOS) || 4));
 const DOCUMENTAL = MINUTOS >= 7;
-const MIN_PALABRAS = Math.round(MINUTOS * 150);
-const MAX_PALABRAS = Math.round(MINUTOS * 170);
+const MIN_PALABRAS = Math.round(MINUTOS * 125);
+const MAX_PALABRAS = Math.round(MINUTOS * 140);
 const TOMAS_MIN = Math.round((MINUTOS * 60) / 15);
 const TOMAS_MAX = Math.round((MINUTOS * 60) / 11);
 const CLIPS_DISTINTOS = `${Math.round(TOMAS_MIN * 0.5)} y ${Math.round(TOMAS_MAX * 0.6)}`;
@@ -122,11 +122,17 @@ function parsear(texto, etiqueta) {
 
 // El guionista NO debe ver las instrucciones de las plantillas animadas: si las ve,
 // a veces copia ese texto tecnico dentro de la narracion. Solo las usa el plan.
+// Tampoco ve las instrucciones de las tomas ni las busquedas de clips: si las ve,
+// a veces las lee en voz alta ("la toma uno debe buscar exactamente...").
+const TECNICO = /plantilla|\btomas?\b|\bbuscar\b|b[uú]squedas? de clips|\bclips?\b|\bplan\b|secciones/i;
 const TEMA_GUION = TEMA
+  .replace(/B[uú]squedas? de clips[\s\S]*$/i, '')
   .split(/(?=OBLIGATORIO:)/)
-  .filter((parte) => !/plantilla/i.test(parte))
+  // La descripcion del tema (la primera parte) siempre se queda; solo se quitan
+  // las reglas OBLIGATORIO que hablan de tomas, clips, plantillas o secciones.
+  .filter((parte, i) => i === 0 || !TECNICO.test(parte))
   .join('')
-  .replace(/[^.]*plantilla[^.]*\./gi, '')
+  .replace(/[^.]*(plantilla|la toma (uno|dos|tres|cuatro|cinco|\d+)|buscar exactamente)[^.]*\./gi, '')
   .trim();
 
 // Limpieza del guion: quita cualquier resto de JSON que se haya colado en la narracion
@@ -139,6 +145,8 @@ const limpiarGuion = (t) =>
     .replace(/\{[^}]*\}/g, '')
     .replace(/["“”]?(tipo|mito|verdad|items|titulo)["“”]\s*:\s*["“”][^"“”]*["“”],?/gi, '')
     .replace(/[{}"“”]/g, '')
+    // Frases tecnicas que se colaron: se borra la frase completa
+    .replace(/[^.!?]*(buscar exactamente|la toma (uno|dos|tres|cuatro|cinco|\d+)|b[uú]squedas? de clips|el plan debe)[^.!?]*[.!?]/gi, '')
     .replace(/[#*_]/g, '')
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
@@ -203,9 +211,9 @@ for (let intento = 1; intento <= 2; intento++) {
 }
 
 const palabras = guion.split(/\s+/).length;
-console.log(`\nPALABRAS: ${palabras} (aprox ${Math.round(palabras / 2.6)}s de video)`);
+console.log(`\nPALABRAS: ${palabras} (aprox ${Math.round(palabras / 2.1)}s de video)`);
 if (palabras < MIN_PALABRAS * 0.9) console.warn('AVISO: el guion salió corto.');
-if (/plantilla|"tipo"|\{|\}/i.test(guion)) console.warn('AVISO: quedó texto técnico en el guion, revísalo.');
+if (/plantilla|"tipo"|\{|\}|buscar exactamente|la toma /i.test(guion)) console.warn('AVISO: quedó texto técnico en el guion, revísalo.');
 
 // Pausa corta para no chocar con el limite de solicitudes por minuto
 await esperar(15000);
@@ -232,7 +240,7 @@ REGLAS:
 - ${TOMAS_MIN} a ${TOMAS_MAX} tomas. Cada una es un cambio visual de 11 a 15 segundos.
 - clip: nombre descriptivo en español con guiones, terminado en .mp4
 - Puedes REPETIR el mismo archivo de clip en tomas distintas, pero no seguidas. Usa entre ${CLIPS_DISTINTOS} archivos distintos en total.
-- buscar: en INGLÉS, concreto y visual, del objeto exacto que se nombra en esa parte. Si el productor dio búsquedas, úsalas. Un archivo de clip siempre lleva la MISMA búsqueda. Nunca uses subscribe, thank you, end screen ni youtube.
+- buscar: en INGLÉS, concreto y visual, de lo que se VE en ese momento: el objeto exacto que la voz nombra en esa toma (por ejemplo si la voz dice "la puerta del microondas", buscar "microwave door close up"; nunca algo abstracto como "safety" o "technology"). Si el productor dio búsquedas, úsalas. Un archivo de clip siempre lleva la MISMA búsqueda. Nunca uses subscribe, thank you, end screen ni youtube.
 - seccion: solo en la primera toma de cada parte del guion; tantas secciones como partes tenga (normalmente de 4 a 6), con 2 o 3 palabras y ortografía perfecta. NUNCA una sección llamada Introducción. En las demás tomas, omite el campo.
 - etiquetas: máximo 1 por toma, máximo 4 palabras, y solo en 5 o 6 tomas de todo el video.
 - La última toma lleva la etiqueta "Próximo video".
@@ -270,9 +278,54 @@ plan = plan.map((t) => {
   return toma;
 });
 
+// ---------- Anclar cada toma a una frase REAL del guion ----------
+// La IA a veces copia mal el fragmento "desde" (cambia una palabra, quita una tilde).
+// Si no se encuentra, las imagenes se desfasan de la voz. Aqui se busca en el guion
+// la frase mas parecida, en orden, y se reemplaza por el texto exacto.
+const normPalabra = (w) => w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+const COMUNES = new Set(['el', 'la', 'los', 'las', 'un', 'una', 'de', 'del', 'y', 'o', 'que', 'en', 'a', 'al', 'es', 'se', 'su', 'por', 'con', 'para', 'lo', 'le', 'no', 'tu', 'te', 'mas', 'pero', 'como']);
+const palabrasGuion = guion.split(/\s+/).filter(Boolean);
+const ng = palabrasGuion.map(normPalabra);
+let posicion = 0;
+let ancladas = 0;
+let sinAncla = 0;
+const buscarSecuencia = (seq, desde) => {
+  for (let j = desde; j <= ng.length - seq.length; j++) {
+    let ok = true;
+    for (let k = 0; k < seq.length; k++) if (ng[j + k] !== seq[k]) { ok = false; break; }
+    if (ok) return j;
+  }
+  return -1;
+};
+plan.forEach((toma, i) => {
+  if (i === 0) {
+    toma.desde = '';
+    return;
+  }
+  const nd = String(toma.desde ?? '').split(/\s+/).map(normPalabra).filter(Boolean);
+  let encontrado = -1;
+  // Primero la frase completa; si no aparece, pedazos de 5, 4 y 3 palabras seguidas de la frase
+  for (let largo = Math.min(nd.length, 7); largo >= 3 && encontrado < 0; largo--) {
+    for (let ini = 0; ini + largo <= nd.length && encontrado < 0; ini++) {
+      const seq = nd.slice(ini, ini + largo);
+      if (seq.every((w) => COMUNES.has(w))) continue;
+      const j = buscarSecuencia(seq, posicion);
+      if (j >= 0) encontrado = Math.max(posicion, j - ini);
+    }
+  }
+  if (encontrado >= 0) {
+    toma.desde = palabrasGuion.slice(encontrado, encontrado + 5).join(' ').replace(/[.,;:!?¡¿"]+/g, ' ').replace(/\s+/g, ' ').trim();
+    posicion = encontrado + 1;
+    ancladas++;
+  } else {
+    sinAncla++;
+  }
+});
+console.log(`ANCLAJE: ${ancladas} tomas ancladas a una frase exacta del guion, ${sinAncla} sin anclar (se reparten por tiempo).`);
+
 // ---------- Controles ----------
 
-console.log(`TOMAS: ${plan.length} (aprox ${(palabras / 2.6 / plan.length).toFixed(1)}s por toma)`);
+console.log(`TOMAS: ${plan.length} (aprox ${(palabras / 2.1 / plan.length).toFixed(1)}s por toma)`);
 if (plan.length < TOMAS_MIN * 0.7) console.warn('AVISO: pocas tomas, el ritmo va a quedar lento.');
 
 const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
