@@ -133,6 +133,8 @@ const TEMA_GUION = TEMA
   .filter((parte, i) => i === 0 || !TECNICO.test(parte))
   .join('')
   .replace(/[^.]*(plantilla|la toma (uno|dos|tres|cuatro|cinco|\d+)|buscar exactamente)[^.]*\./gi, '')
+  // "Capitulo 1, La nube gigante:" se le pasa solo como "La nube gigante:", para que no lo lea
+  .replace(/Cap[ií]tulo\s*\d+\s*,?\s*/gi, '')
   .trim();
 
 // Limpieza del guion: quita cualquier resto de JSON que se haya colado en la narracion
@@ -145,6 +147,8 @@ const limpiarGuion = (t) =>
     .replace(/\{[^}]*\}/g, '')
     .replace(/["“”]?(tipo|mito|verdad|items|titulo)["“”]\s*:\s*["“”][^"“”]*["“”],?/gi, '')
     .replace(/[{}"“”]/g, '')
+    // "Capitulo uno, la nube gigante." leido en voz alta: se quita (la tarjeta de seccion ya lo muestra)
+    .replace(/\b(cap[ií]tulo|secci[oó]n)\s+(\d+|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|primero|segundo|tercero|cuarto|quinto|sexto|s[eé]ptimo)\b[^.:!?]{0,60}[.:]\s*/gi, '')
     // Frases tecnicas que se colaron: se borra la frase completa
     .replace(/[^.!?]*(buscar exactamente|la toma (uno|dos|tres|cuatro|cinco|\d+)|b[uú]squedas? de clips|el plan debe)[^.!?]*[.!?]/gi, '')
     .replace(/[#*_]/g, '')
@@ -175,6 +179,7 @@ REGLAS GENERALES:
 - PROHIBIDO una parte de introducción: se arranca directo con el gancho.
 - Al final, una sola línea invitando a suscribirse a Ingeniería Invisible.
 - PROHIBIDO escribir código, JSON, llaves, comillas de campos o instrucciones técnicas: todo lo que escribas lo va a leer la voz en voz alta.
+- PROHIBIDO decir en voz alta "capítulo uno", "capítulo dos", "sección", "parte uno" ni numerar las partes: el paso de una parte a otra se hace con una frase natural de transición (por ejemplo: Pero eso es solo el comienzo). Los nombres de las partes aparecen en pantalla, no se leen.
 
 Responde SOLO con el texto del guion. Sin JSON, sin títulos, sin comillas, sin marcas de sección ni números de parte. Solo el texto corrido que va a leer la voz.`;
 
@@ -213,7 +218,7 @@ for (let intento = 1; intento <= 2; intento++) {
 const palabras = guion.split(/\s+/).length;
 console.log(`\nPALABRAS: ${palabras} (aprox ${Math.round(palabras / 2.1)}s de video)`);
 if (palabras < MIN_PALABRAS * 0.9) console.warn('AVISO: el guion salió corto.');
-if (/plantilla|"tipo"|\{|\}|buscar exactamente|la toma /i.test(guion)) console.warn('AVISO: quedó texto técnico en el guion, revísalo.');
+if (/plantilla|"tipo"|\{|\}|buscar exactamente|la toma |cap[ií]tulo (uno|dos|tres|\d)/i.test(guion)) console.warn('AVISO: quedó texto técnico en el guion, revísalo.');
 
 // Pausa corta para no chocar con el limite de solicitudes por minuto
 await esperar(15000);
