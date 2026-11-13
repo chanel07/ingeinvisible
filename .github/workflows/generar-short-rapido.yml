@@ -9,6 +9,10 @@ on:
         description: 'Tema del Short (dejar vacío para tomar de la lista)'
         required: false
         type: string
+      voz:
+        description: 'Tu voz grabada: nombre del archivo en video-agua/public/voces/ (vacío = voz de Gonzalo)'
+        required: false
+        type: string
 
 jobs:
   short:
@@ -77,6 +81,7 @@ jobs:
         env:
           AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
           AZURE_SPEECH_REGION: eastus
+          VOZ_PROPIA: ${{ inputs.voz }}
         run: |
           PAL='clip|toma|escena|visual|imagen|b-roll|seccion|sección|SECCIÓN|section|parte|capitulo|capítulo|CAPÍTULO|titulo|título|TÍTULO|nota'
           sed -i -E "/^[[:space:]]*[(\[]?[0-9]*[.)]?[[:space:]]*($PAL)[[:space:]]*[0-9]*[[:space:]]*:/Id" public/guion.txt
@@ -85,12 +90,27 @@ jobs:
           echo "----- GUION QUE SE VA A NARRAR -----"
           cat public/guion.txt
           echo "------------------------------------"
-          if edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt; then
-            echo "Voz generada con edge-tts"
+          if [ -n "$VOZ_PROPIA" ] && [ -f "public/voces/$VOZ_PROPIA" ]; then
+            echo "===== Usando TU voz: $VOZ_PROPIA ====="
+            # Limpia la grabacion: quita ruido de fondo y silencios del inicio y del final, e iguala el volumen
+            ffmpeg -nostdin -y -loglevel error -i "public/voces/$VOZ_PROPIA" \
+              -af "highpass=f=80,afftdn=nf=-25,silenceremove=start_periods=1:start_silence=0.1:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_silence=0.3:start_threshold=-45dB,areverse" \
+              public/voz-limpia.wav
+            ffmpeg -nostdin -y -loglevel error -i public/voz-limpia.wav -af "loudnorm=I=-16:TP=-1.5:LRA=11" -ar 44100 -ac 1 -b:a 192k public/voz.mp3
+            rm -f public/voz-limpia.wav
+            pip install --quiet faster-whisper
+            python scripts/transcribir-voz.py
           else
-            echo "===== edge-tts falló, uso Azure con la misma voz de Gonzalo ====="
-            node scripts/voz-azure.mjs
-            node scripts/srt-desde-audio.mjs
+            if [ -n "$VOZ_PROPIA" ]; then
+              echo "AVISO: no encontré public/voces/$VOZ_PROPIA, uso la voz de Gonzalo"
+            fi
+            if edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt; then
+              echo "Voz generada con edge-tts"
+            else
+              echo "===== edge-tts falló, uso Azure con la misma voz de Gonzalo ====="
+              node scripts/voz-azure.mjs
+              node scripts/srt-desde-audio.mjs
+            fi
           fi
 
       - name: Título y descripción para YouTube
@@ -138,8 +158,9 @@ jobs:
           if [ -f out/metadatos.txt ]; then
             TITULO=$(sed -n '2p' out/metadatos.txt)
           fi
-          echo "Título en pantalla: $TITULO"
-          export REMOTION_TITULO="$TITULO"
+          echo "Título del video: $TITULO (en el Short no sale en pantalla: arranca Invi saludando)"
+          export REMOTION_TITULO=""
+          export REMOTION_TITULO_SEG="1.2"
           # Efectos de sonido: si falta alguno, el video sale sin efectos en vez de fallar
           SFX_OK=si
           for s in whoosh pop ding tachar impacto; do
@@ -150,6 +171,9 @@ jobs:
           done
           echo "Efectos de sonido: $SFX_OK"
           export REMOTION_SFX="$SFX_OK"
+          # Personaje Invi (dibujado en src/Invi.tsx). Para quitarlo, cambia si por no
+          export REMOTION_PERSONAJE="si"
+          echo "Personaje Invi: $REMOTION_PERSONAJE"
           # Musica de fondo: una canción al azar de public/musica/ (si no hay, sale sin música)
           MUSICA=""
           if ls public/musica/*.mp3 >/dev/null 2>&1; then
