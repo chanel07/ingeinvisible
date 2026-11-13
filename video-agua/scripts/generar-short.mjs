@@ -146,10 +146,10 @@ REGLAS DEL GUION:
 - No exageres el peligro. Si algo es raro, dilo como raro.
 
 REGLAS DEL PLAN DE TOMAS:
-- Entre 7 y 9 tomas, en el orden del guion. Cada toma dura de 2 a 4 segundos: cambia de clip seguido para que el video tenga ritmo, y usa una búsqueda distinta en cada toma.
+- Entre 6 y 7 tomas, en el orden del guion, una por cada frase del guion. Cada toma dura de 3 a 4 segundos: cambia de clip justo cuando cambia la frase, y usa una búsqueda distinta en cada toma.
 - "desde": frase EXACTA de 3 a 6 palabras copiada del guion donde empieza esa toma. La primera toma lleva "desde": "".
 - "clip": nombre único en español con guiones, terminado en .mp4 (por ejemplo cable-caliente.mp4).
-- "buscar": búsqueda en INGLÉS para video de stock, concreta y visual, del objeto exacto que se nombra en esa parte (por ejemplo "gas stove flame", no "danger"). Si el productor dio búsquedas, úsalas. NUNCA uses subscribe, thank you, intro, outro, youtube ni texto.
+- "buscar": búsqueda en INGLÉS para video de stock que muestre EXACTAMENTE la acción que dice la voz en esa toma, con quién la hace y sobre qué objeto: verbo + objeto + detalle. Si la voz dice "abres la puerta del microondas", buscar "person opening microwave door"; si dice "conectas el cargador", buscar "hand plugging charger into outlet". Nunca solo el objeto quieto ni algo abstracto como "danger". Si el productor dio búsquedas, úsalas. NUNCA uses subscribe, thank you, intro, outro, youtube ni texto.
 - "etiquetas": lista con 0 o 1 etiqueta por toma: {"texto": "máximo 3 palabras", "cuando": "frase exacta del guion"}.
 - "plantilla": SOLO si el productor lo pide en el tema. Copia el campo "plantilla" EXACTAMENTE como lo escribió el productor, en la toma que él indicó, y esa toma va sin etiquetas. Si el productor no pide plantilla, no pongas este campo.
 
