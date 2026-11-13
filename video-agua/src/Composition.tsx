@@ -1,5 +1,6 @@
 import React from 'react';
 import {AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {INVI} from './Invi';
 
 export type Caption = {start: number; end: number; text: string};
 export type Etiqueta = {texto: string; cuando?: string};
@@ -58,6 +59,12 @@ const MUSICA_VOZ = 0.2; // volumen mientras la voz habla
 const BARRIDO = (process.env.REMOTION_BARRIDO ?? 'si').toLowerCase() !== 'no';
 const GOLPES = (process.env.REMOTION_GOLPES ?? 'si').toLowerCase() !== 'no';
 const BARRIDO_FRAMES = 9;
+
+// Personaje del canal: Invi, el ingeniero invisible (dibujado en src/Invi.tsx).
+// Se apaga con REMOTION_PERSONAJE=no en el workflow.
+const PERSONAJE = (process.env.REMOTION_PERSONAJE ?? 'si').toLowerCase() !== 'no';
+const CIERRE_INVI = (process.env.REMOTION_CIERRE_INVI ?? '¡Sígueme para el de mañana!').trim();
+type PoseInvi = 'saludo' | 'senala' | 'sorpresa' | 'pulgar';
 
 const AMARILLO = '#f5c400';
 const ROJO = '#ff0000';
@@ -178,6 +185,53 @@ const TomaVideo = ({toma, indice, inicio, fin, captions}: {toma: Toma; indice: n
   );
 };
 
+// Invi aparece con un rebote, flota suavecito y, si se pide, se va hacia un lado
+const Invi = ({pose, size, desde = 0, hasta, lado = 'izquierda', style}: {pose: PoseInvi; size: number; desde?: number; hasta?: number; lado?: 'izquierda' | 'derecha'; style: React.CSSProperties}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  if (!PERSONAJE || frame < desde || (hasta !== undefined && frame > hasta + 8)) return null;
+  const entra = spring({frame: frame - desde, fps, config: {damping: 10, stiffness: 170}});
+  const sale = hasta !== undefined ? interpolate(frame, [hasta, hasta + 8], [0, 1], fijo) : 0;
+  const flota = Math.sin((frame - desde) / 9) * 7;
+  const saluda = pose === 'saludo' ? Math.sin((frame - desde) / 3.5) * 6 : 0;
+  const fuera = (lado === 'izquierda' ? -1 : 1) * sale * size * 1.3;
+  return (
+    <Img
+      src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(INVI[pose])}`}
+      style={{position: 'absolute', width: size, height: size, ...style, transform: `translate(${fuera}px, ${flota}px) scale(${Math.max(0, entra)}) rotate(${saluda}deg)`, filter: 'drop-shadow(0 10px 22px rgba(0,0,0,0.45))'}}
+    />
+  );
+};
+
+// Inicio del video: Invi saluda desde la izquierda y se va
+const InviIntro = () => {
+  const {fps} = useVideoConfig();
+  return (
+    <>
+      <Invi pose="saludo" size={400} desde={2} hasta={Math.round(1.9 * fps)} style={{left: 20, bottom: '30%'}} />
+      <Sfx src="pop.mp3" at={2} vol={0.2} />
+    </>
+  );
+};
+
+// Final del video: Invi aprueba con un globo de texto que invita a seguir el canal
+const CierreInvi = () => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const globo = spring({frame: frame - 6, fps, config: {damping: 11, stiffness: 160}});
+  return (
+    <AbsoluteFill>
+      <div style={{position: 'absolute', left: 0, right: 0, bottom: '56%', display: 'flex', justifyContent: 'center', opacity: Math.min(1, Math.max(0, globo)), transform: `scale(${0.6 + 0.4 * Math.max(0, globo)})`}}>
+        <div style={{position: 'relative', background: '#ffffff', color: '#10233a', fontWeight: 900, fontSize: 54, padding: '22px 40px', borderRadius: 40, border: '6px solid #10233a', boxShadow: '0 12px 30px rgba(0,0,0,0.45)', textAlign: 'center', maxWidth: '80%'}}>
+          {CIERRE_INVI}
+          <div style={{position: 'absolute', left: '50%', bottom: -34, width: 0, height: 0, borderLeft: '22px solid transparent', borderRight: '22px solid transparent', borderTop: '34px solid #10233a', transform: 'translateX(-50%)'}} />
+        </div>
+      </div>
+      <Invi pose="pulgar" size={440} style={{left: 'calc(50% - 220px)', bottom: '29%'}} />
+    </AbsoluteFill>
+  );
+};
+
 // Plantilla animada "Mito o verdad": un dibujo propio en vez de un clip de stock.
 // Aparece el mito, se tacha con un sello rojo y despues sube la verdad.
 const VERDE = '#2ecc71';
@@ -244,6 +298,8 @@ const PlantillaMito = ({mito, verdad, dur}: {mito: string; verdad: string; dur: 
       <Sfx src="whoosh.mp3" at={0} vol={0.22} />
       <Sfx src="tachar.mp3" at={tTachar} vol={0.28} />
       <Sfx src="ding.mp3" at={tVerdad} vol={0.22} />
+      <Invi pose="sorpresa" size={300} desde={6} hasta={tVerdad - 8} style={{left: 10, bottom: vertical ? '27%' : '6%'}} />
+      <Invi pose="pulgar" size={300} desde={tVerdad} style={{left: 10, bottom: vertical ? '27%' : '6%'}} />
       <AbsoluteFill style={{background: `radial-gradient(circle at 50% 30%, rgba(245,196,0,${0.10 + 0.06 * brillo}) 0%, transparent 55%)`}} />
       <AbsoluteFill style={{alignItems: 'center', justifyContent: vertical ? 'flex-start' : 'center', paddingTop: vertical ? '16%' : 0, gap: vertical ? 70 : 34, flexDirection: vertical ? 'column' : 'row'}}>
         <div style={{...tarjeta, opacity: Math.min(1, entraMito) * apagaMito, transform: `translateY(${(1 - entraMito) * -80}px) scale(${0.9 + 0.1 * entraMito})`}}>
@@ -297,6 +353,7 @@ const PlantillaLista = ({titulo, items, dur, inicio, captions}: {titulo?: string
       {momentos.map((m, k) => (
         <Sfx key={`pop${k}`} src="pop.mp3" at={m} vol={0.26} />
       ))}
+      <Invi pose="senala" size={260} desde={8} style={{left: 6, bottom: vertical ? '27%' : '4%'}} />
       <AbsoluteFill style={{background: `radial-gradient(circle at 50% 25%, rgba(245,196,0,${0.09 + 0.05 * brillo}) 0%, transparent 55%)`}} />
       <AbsoluteFill style={{alignItems: 'center', justifyContent: 'flex-start', paddingTop: vertical ? '12%' : '5%', flexDirection: 'column', gap: vertical ? 26 : 16}}>
         {titulo && (
@@ -393,6 +450,7 @@ const PlantillaSiNo = ({titulo, si, no, tituloSi, tituloNo, dur, inicio, caption
       {momentosNo.map((m, k) => (
         <Sfx key={`no${k}`} src="pop.mp3" at={m} vol={0.26} />
       ))}
+      <Invi pose="senala" size={240} desde={8} style={{left: 6, bottom: vertical ? '27%' : '4%'}} />
       <AbsoluteFill style={{background: `radial-gradient(circle at 50% 20%, rgba(245,196,0,${0.08 + 0.05 * brillo}) 0%, transparent 55%)`}} />
       <AbsoluteFill style={{alignItems: 'center', justifyContent: 'flex-start', paddingTop: vertical ? '11%' : '5%', flexDirection: 'column', gap: vertical ? 26 : 16}}>
         {titulo && (
@@ -859,6 +917,12 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
         </Sequence>
       ))}
 
+      {PERSONAJE && !TITULO && (
+        <Sequence from={0} durationInFrames={Math.round(2.3 * fps)}>
+          <InviIntro />
+        </Sequence>
+      )}
+
       {TITULO && (
         <Sequence from={0} durationInFrames={Math.round(SEGUNDOS_TITULO * fps)}>
           <TituloInicio />
@@ -891,12 +955,17 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
         </div>
       )}
 
-      {CIERRE && inicioCierre > 4 * fps && (
+      {PERSONAJE && inicioCierre > 4 * fps ? (
+        <Sequence from={inicioCierre}>
+          <CierreInvi />
+          <Sfx src="pop.mp3" at={0} vol={0.25} />
+        </Sequence>
+      ) : CIERRE && inicioCierre > 4 * fps ? (
         <Sequence from={inicioCierre}>
           <CierreCanal />
           <Sfx src="pop.mp3" at={0} vol={0.25} />
         </Sequence>
-      )}
+      ) : null}
     </AbsoluteFill>
   );
 };
