@@ -245,7 +245,7 @@ REGLAS:
 - ${TOMAS_MIN} a ${TOMAS_MAX} tomas. Cada una es un cambio visual de 11 a 15 segundos.
 - clip: nombre descriptivo en español con guiones, terminado en .mp4
 - Puedes REPETIR el mismo archivo de clip en tomas distintas, pero no seguidas. Usa entre ${CLIPS_DISTINTOS} archivos distintos en total.
-- buscar: en INGLÉS, concreto y visual, de lo que se VE en ese momento: el objeto exacto que la voz nombra en esa toma (por ejemplo si la voz dice "la puerta del microondas", buscar "microwave door close up"; nunca algo abstracto como "safety" o "technology"). Si el productor dio búsquedas, úsalas. Un archivo de clip siempre lleva la MISMA búsqueda. Nunca uses subscribe, thank you, end screen ni youtube.
+- buscar: en INGLÉS, concreto y visual, de lo que se VE en ese momento: el objeto exacto que la voz nombra en esa toma (por ejemplo si la voz dice "la puerta del microondas", buscar "microwave door close up"; nunca algo abstracto como "safety" o "technology"). Si el productor dio búsquedas, úsalas. Evita palabras con doble sentido que traen clips de otra cosa (por ejemplo motor o compressor traen motores de carro; fan trae ventiladores): describe el objeto completo, como "wall mounted air conditioner" o "split air conditioner outdoor unit". Un archivo de clip siempre lleva la MISMA búsqueda. Nunca uses subscribe, thank you, end screen ni youtube.
 - seccion: solo en la primera toma de cada parte del guion; tantas secciones como partes tenga (normalmente de 4 a 6), con 2 o 3 palabras y ortografía perfecta. NUNCA una sección llamada Introducción. En las demás tomas, omite el campo.
 - etiquetas: máximo 1 por toma, máximo 4 palabras, y solo en 5 o 6 tomas de todo el video.
 - La última toma lleva la etiqueta "Próximo video".
