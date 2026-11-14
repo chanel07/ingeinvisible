@@ -18,6 +18,10 @@ on:
           - '4'
           - '8'
           - '10'
+      evitar:
+        description: 'Clips que NO deben salir, en inglés separados por coma (ej: car, engine, fan)'
+        required: false
+        type: string
 
 jobs:
   video:
@@ -118,6 +122,8 @@ jobs:
         env:
           PEXELS_KEY: ${{ secrets.PEXELS_KEY }}
           PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
+          CLIPS_EVITAR: ${{ inputs.evitar }}
+          CLIPS_ESTRICTO: 'si'
         run: rm -rf public/clips && node scripts/descargar-clips.mjs
 
       - name: Preparar clips
