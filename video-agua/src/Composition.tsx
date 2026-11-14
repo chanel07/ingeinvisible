@@ -1,11 +1,12 @@
 import React from 'react';
 import {AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import {INVI} from './Invi';
+import {PERRITO} from './Perrito';
 
 export type Caption = {start: number; end: number; text: string};
 export type Etiqueta = {texto: string; cuando?: string};
-export type ItemLista = string | {texto: string; cuando?: string};
-export type Plantilla = {tipo: string; mito?: string; verdad?: string; titulo?: string; items?: ItemLista[]; si?: ItemLista[]; no?: ItemLista[]; tituloSi?: string; tituloNo?: string};
+export type ItemLista = string | {texto: string; cuando?: string; nota?: string; op?: string};
+export type Plantilla = {tipo: string; mito?: string; verdad?: string; titulo?: string; items?: ItemLista[]; si?: ItemLista[]; no?: ItemLista[]; tituloSi?: string; tituloNo?: string; letra?: string; agente?: string; nunca?: string; resultado?: string; cuandoResultado?: string};
 export type Toma = {desde: string; clip: string; buscar: string; seccion?: string; etiquetas?: unknown; plantilla?: Plantilla};
 export type VideoProps = {captions: Caption[]; plan: Toma[]};
 
@@ -60,10 +61,12 @@ const BARRIDO = (process.env.REMOTION_BARRIDO ?? 'si').toLowerCase() !== 'no';
 const GOLPES = (process.env.REMOTION_GOLPES ?? 'si').toLowerCase() !== 'no';
 const BARRIDO_FRAMES = 9;
 
-// Personaje del canal: Invi, el ingeniero invisible (dibujado en src/Invi.tsx).
-// Se apaga con REMOTION_PERSONAJE=no en el workflow.
-const PERSONAJE = (process.env.REMOTION_PERSONAJE ?? 'si').toLowerCase() !== 'no';
-const CIERRE_INVI = (process.env.REMOTION_CIERRE_INVI ?? '¡Sígueme para el de mañana!').trim();
+// Personaje del video, segun REMOTION_PERSONAJE en el workflow:
+// si = Invi, el ingeniero invisible (src/Invi.tsx); perro = el perrito de la pagina (src/Perrito.tsx); no = ninguno.
+const TIPO_PERSONAJE = (process.env.REMOTION_PERSONAJE ?? 'si').toLowerCase();
+const PERSONAJE = TIPO_PERSONAJE !== 'no';
+const DIBUJOS = TIPO_PERSONAJE === 'perro' ? PERRITO : INVI;
+const CIERRE_INVI = (process.env.REMOTION_CIERRE_INVI ?? (TIPO_PERSONAJE === 'perro' ? '¡Sigue la página para más!' : '¡Sígueme para el de mañana!')).trim();
 type PoseInvi = 'saludo' | 'senala' | 'sorpresa' | 'pulgar';
 
 const AMARILLO = '#f5c400';
@@ -197,7 +200,7 @@ const Invi = ({pose, size, desde = 0, hasta, lado = 'izquierda', style}: {pose: 
   const fuera = (lado === 'izquierda' ? -1 : 1) * sale * size * 1.3;
   return (
     <Img
-      src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(INVI[pose])}`}
+      src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(DIBUJOS[pose])}`}
       style={{position: 'absolute', width: size, height: size, ...style, transform: `translate(${fuera}px, ${flota}px) scale(${Math.max(0, entra)}) rotate(${saluda}deg)`, filter: 'drop-shadow(0 10px 22px rgba(0,0,0,0.45))'}}
     />
   );
@@ -463,6 +466,338 @@ const PlantillaSiNo = ({titulo, si, no, tituloSi, tituloNo, dur, inicio, caption
           {columna(listaNo, momentosNo, false, tituloNo || 'NO')}
         </div>
       </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
+// Plantilla animada "Clase": una ficha dibujada con codigo (ideal para clases de fuego,
+// tipos de algo, categorias). Simbolo grande con su letra, ejemplos que entran con la voz,
+// con que se apaga (con un extintor dibujado) y una advertencia opcional.
+const CLASES_FUEGO: Record<string, {color: string; forma: string}> = {
+  A: {color: '#22b14c', forma: 'triangulo'},
+  B: {color: '#e8262f', forma: 'cuadrado'},
+  C: {color: '#1e6fe0', forma: 'circulo'},
+  D: {color: '#f5c400', forma: 'estrella'},
+  K: {color: '#2b2b2b', forma: 'hexagono'},
+};
+
+const SimboloClase = ({letra, size}: {letra: string; size: number}) => {
+  const c = CLASES_FUEGO[letra.toUpperCase()] ?? {color: '#ff7a1a', forma: 'circulo'};
+  const borde = {stroke: '#ffffff', strokeWidth: 6, strokeLinejoin: 'round' as const};
+  const texto = c.forma === 'estrella' || letra.toUpperCase() === 'D' ? '#111' : '#fff';
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" style={{filter: 'drop-shadow(0 14px 30px rgba(0,0,0,0.5))'}}>
+      {c.forma === 'triangulo' && <polygon points="50,6 96,90 4,90" fill={c.color} {...borde} />}
+      {c.forma === 'cuadrado' && <rect x="8" y="8" width="84" height="84" rx="6" fill={c.color} {...borde} />}
+      {c.forma === 'circulo' && <circle cx="50" cy="50" r="44" fill={c.color} {...borde} />}
+      {c.forma === 'estrella' && <polygon points="50,4 61,36 96,37 68,57 79,92 50,71 21,92 32,57 4,37 39,36" fill={c.color} {...borde} />}
+      {c.forma === 'hexagono' && <polygon points="27,6 73,6 96,50 73,94 27,94 4,50" fill={c.color} {...borde} />}
+      <text x="50" y={c.forma === 'triangulo' ? 78 : 66} textAnchor="middle" fontSize={c.forma === 'triangulo' ? 40 : 48} fontWeight="900" fontFamily="Arial, sans-serif" fill={texto}>
+        {letra.toUpperCase()}
+      </text>
+    </svg>
+  );
+};
+
+// Extintor dibujado con codigo
+const Extintor = ({size}: {size: number}) => (
+  <svg width={size} height={size * 1.4} viewBox="0 0 100 140" style={{filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.45))'}}>
+    <path d="M58 22 Q86 24 86 52 L86 70" stroke="#111" strokeWidth="6" fill="none" strokeLinecap="round" />
+    <path d="M80 70 L92 70 L90 84 L82 84 Z" fill="#111" />
+    <rect x="40" y="10" width="20" height="16" rx="3" fill="#333" />
+    <path d="M30 14 L62 8" stroke="#555" strokeWidth="5" strokeLinecap="round" />
+    <rect x="22" y="26" width="56" height="108" rx="22" fill="#e8262f" stroke="#7a0f14" strokeWidth="4" />
+    <rect x="30" y="58" width="40" height="40" rx="6" fill="#fff" />
+    <rect x="36" y="66" width="28" height="5" rx="2" fill="#e8262f" />
+    <rect x="36" y="76" width="22" height="5" rx="2" fill="#999" />
+    <rect x="36" y="86" width="26" height="5" rx="2" fill="#999" />
+    <rect x="30" y="34" width="8" height="90" rx="4" fill="#ff8a8f" opacity="0.6" />
+  </svg>
+);
+
+const PlantillaClase = ({letra, titulo, items, agente, nunca, dur, inicio, captions}: {letra: string; titulo?: string; items: ItemLista[]; agente?: string; nunca?: string; dur: number; inicio: number; captions: Caption[]}) => {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const vertical = height > width;
+  const c = CLASES_FUEGO[letra.toUpperCase()] ?? {color: '#ff7a1a', forma: 'circulo'};
+  const lista = items.map((it) => (typeof it === 'string' ? {texto: it} : it)).filter((it) => it && it.texto);
+  const base = vertical ? width * 0.058 : height * 0.058;
+
+  // Los ejemplos entran cuando la voz los dice; si no, se reparten en la primera mitad
+  const paso = Math.max(6, Math.floor((dur * 0.5) / Math.max(1, lista.length)));
+  const momentos = lista.map((it, k) => {
+    const s = buscarInicio(captions, it.cuando, inicio);
+    const f = s !== null ? Math.round((s - inicio) * fps) : Math.round(0.8 * fps) + k * paso;
+    return Math.max(0, Math.min(dur - 6, f));
+  });
+  const tAgente = Math.min(dur - 10, Math.max(...momentos, Math.round(1.2 * fps)) + Math.round(0.9 * fps));
+  const tNunca = tAgente + Math.round(0.8 * fps);
+
+  const fundido = interpolate(frame, [0, FUNDIDO], [0, 1], fijo);
+  const simbolo = spring({frame: frame - 2, fps, config: {damping: 9, stiffness: 140}});
+  const entraAgente = spring({frame: frame - tAgente, fps, config: {damping: 12, stiffness: 150}});
+  const entraNunca = spring({frame: frame - tNunca, fps, config: {damping: 10, stiffness: 170}});
+  const latido = 1 + Math.sin(frame / 7) * 0.025;
+
+  return (
+    <AbsoluteFill style={{opacity: fundido, background: `linear-gradient(160deg, #0d1b2a 0%, ${c.color}55 60%, #0d1b2a 100%)`}}>
+      <Sfx src="whoosh.mp3" at={0} vol={0.2} />
+      <Sfx src="impacto.mp3" at={2} vol={0.22} />
+      {momentos.map((m, k) => (
+        <Sfx key={`c${k}`} src="pop.mp3" at={m} vol={0.24} />
+      ))}
+      {agente && <Sfx src="ding.mp3" at={tAgente} vol={0.2} />}
+      {nunca && <Sfx src="tachar.mp3" at={tNunca} vol={0.24} />}
+      <AbsoluteFill style={{background: `radial-gradient(circle at ${vertical ? '50% 22%' : '24% 50%'}, ${c.color}66 0%, transparent 50%)`}} />
+      <AbsoluteFill style={{flexDirection: vertical ? 'column' : 'row', alignItems: 'center', justifyContent: vertical ? 'flex-start' : 'center', paddingTop: vertical ? '9%' : 0, gap: vertical ? 30 : 70}}>
+        <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, transform: `scale(${Math.max(0, simbolo) * latido}) rotate(${(1 - Math.min(1, simbolo)) * -30}deg)`}}>
+          <SimboloClase letra={letra} size={vertical ? width * 0.42 : height * 0.5} />
+          <div style={{color: '#fff', fontWeight: 900, fontSize: base * 0.8, letterSpacing: 6, textShadow: '0 4px 16px rgba(0,0,0,0.7)'}}>CLASE {letra.toUpperCase()}</div>
+        </div>
+        <div style={{width: vertical ? '86%' : '48%', display: 'flex', flexDirection: 'column', gap: vertical ? 18 : 14}}>
+          {titulo && (
+            <div style={{alignSelf: vertical ? 'center' : 'flex-start', background: c.color, color: c.forma === 'estrella' ? '#111' : '#fff', fontWeight: 900, fontSize: base * 1.05, textTransform: 'uppercase', letterSpacing: 2, padding: '10px 30px', borderRadius: 999, border: '5px solid #fff', boxShadow: '0 10px 24px rgba(0,0,0,0.4)', opacity: Math.min(1, Math.max(0, simbolo))}}>
+              {titulo}
+            </div>
+          )}
+          <div style={{display: 'flex', flexWrap: 'wrap', gap: 14, justifyContent: vertical ? 'center' : 'flex-start'}}>
+            {lista.map((it, k) => {
+              if (frame < momentos[k]) return null;
+              const sp = spring({frame: frame - momentos[k], fps, config: {damping: 12, stiffness: 170}});
+              return (
+                <div key={k} style={{background: 'rgba(0,0,0,0.45)', color: '#fff', fontWeight: 900, fontSize: base * 0.78, padding: '12px 24px', borderRadius: 18, borderLeft: `8px solid ${c.color}`, transform: `scale(${0.6 + 0.4 * Math.min(1, sp)})`, opacity: Math.min(1, sp)}}>
+                  {it.texto}
+                </div>
+              );
+            })}
+          </div>
+          {agente && frame >= tAgente && (
+            <div style={{display: 'flex', alignItems: 'center', gap: 20, marginTop: 8, background: 'rgba(46,204,113,0.18)', border: '4px solid #2ecc71', borderRadius: 26, padding: '14px 22px', transform: `translateY(${(1 - Math.min(1, entraAgente)) * 60}px)`, opacity: Math.min(1, Math.max(0, entraAgente))}}>
+              <Extintor size={base * 1.6} />
+              <div>
+                <div style={{color: '#2ecc71', fontWeight: 900, fontSize: base * 0.6, letterSpacing: 3}}>SE APAGA CON</div>
+                <div style={{color: '#fff', fontWeight: 900, fontSize: base * 0.9, lineHeight: 1.1}}>{agente}</div>
+              </div>
+            </div>
+          )}
+          {nunca && frame >= tNunca && (
+            <div style={{display: 'flex', alignItems: 'center', gap: 16, background: 'rgba(255,77,77,0.2)', border: '4px solid #ff4d4d', borderRadius: 26, padding: '12px 22px', transform: `scale(${0.7 + 0.3 * Math.min(1, Math.max(0, entraNunca))})`, opacity: Math.min(1, Math.max(0, entraNunca))}}>
+              <IconoClave tipo="x" size={base * 1.3} />
+              <div style={{color: '#fff', fontWeight: 900, fontSize: base * 0.85, lineHeight: 1.1}}>{nunca}</div>
+            </div>
+          )}
+        </div>
+      </AbsoluteFill>
+      <Invi pose="senala" size={vertical ? 240 : 230} desde={10} style={{left: 6, bottom: vertical ? '27%' : '4%'}} />
+    </AbsoluteFill>
+  );
+};
+
+// Plantilla animada "Pasos": una guia paso a paso. Arriba una barra de progreso con
+// todos los pasos; en el centro, grande, el paso que la voz esta explicando.
+// Cada paso trae "texto" y opcional "nota" (detalle corto) y "cuando" (frase del guion).
+const PlantillaPasos = ({titulo, items, dur, inicio, captions}: {titulo?: string; items: ItemLista[]; dur: number; inicio: number; captions: Caption[]}) => {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const vertical = height > width;
+  const lista = items.map((it) => (typeof it === 'string' ? {texto: it} : it)).filter((it) => it && it.texto) as {texto: string; nota?: string; cuando?: string}[];
+  const n = Math.max(1, lista.length);
+  const base = vertical ? width * 0.062 : height * 0.062;
+
+  const margen = Math.round(0.4 * fps);
+  const paso = Math.max(1, Math.floor((dur * 0.88 - margen) / n));
+  const momentos = lista.map((it, k) => {
+    const s = buscarInicio(captions, it.cuando, inicio);
+    const f = s !== null ? Math.round((s - inicio) * fps) : margen + k * paso;
+    return Math.max(0, Math.min(dur - 6, f));
+  });
+  for (let k = 1; k < momentos.length; k++) if (momentos[k] <= momentos[k - 1]) momentos[k] = momentos[k - 1] + Math.round(0.8 * fps);
+  let actual = 0;
+  momentos.forEach((m, k) => {
+    if (frame >= m) actual = k;
+  });
+  const it = lista[actual];
+  const entra = spring({frame: frame - momentos[actual], fps, config: {damping: 14, stiffness: 150}});
+  const fundido = interpolate(frame, [0, FUNDIDO], [0, 1], fijo);
+  const brillo = 0.5 + 0.5 * Math.sin(frame / 9);
+  const circulo = vertical ? Math.min(width * 0.1, (width * 0.84) / n - 14) : Math.min(height * 0.085, (width * 0.6) / n - 20);
+
+  return (
+    <AbsoluteFill style={{opacity: fundido, background: 'linear-gradient(160deg, #0b1a2c 0%, #12395a 55%, #0f5a5a 100%)'}}>
+      <Sfx src="whoosh.mp3" at={0} vol={0.2} />
+      {momentos.map((m, k) => (
+        <Sfx key={`p${k}`} src={k === n - 1 ? 'ding.mp3' : 'pop.mp3'} at={m} vol={0.25} />
+      ))}
+      <AbsoluteFill style={{background: `radial-gradient(circle at 50% ${vertical ? '42%' : '50%'}, rgba(245,196,0,${0.1 + 0.05 * brillo}) 0%, transparent 55%)`}} />
+      <AbsoluteFill style={{flexDirection: 'column', alignItems: 'center', justifyContent: vertical ? 'flex-start' : 'center', paddingTop: vertical ? '12%' : 0, paddingBottom: vertical ? 0 : '12%', gap: vertical ? 40 : 30}}>
+        {titulo && (
+          <div style={{color: AMARILLO, fontWeight: 900, fontSize: base * 0.95, textTransform: 'uppercase', letterSpacing: 2, textAlign: 'center', width: '88%', textShadow: '0 6px 24px rgba(0,0,0,0.6)'}}>
+            {titulo}
+          </div>
+        )}
+        {/* Barra de progreso */}
+        <div style={{display: 'flex', alignItems: 'center'}}>
+          {lista.map((_, k) => {
+            const hecho = k < actual;
+            const esActual = k === actual;
+            return (
+              <React.Fragment key={k}>
+                {k > 0 && <div style={{width: circulo * 0.55, height: 8, borderRadius: 4, background: k <= actual ? VERDE : 'rgba(255,255,255,0.18)'}} />}
+                <div
+                  style={{
+                    width: circulo,
+                    height: circulo,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 900,
+                    fontSize: circulo * 0.5,
+                    background: hecho ? VERDE : esActual ? AMARILLO : 'rgba(255,255,255,0.1)',
+                    color: hecho || esActual ? '#111' : 'rgba(255,255,255,0.55)',
+                    border: esActual ? '5px solid #fff' : '4px solid rgba(255,255,255,0.25)',
+                    boxShadow: esActual ? `0 0 ${20 + 16 * brillo}px rgba(245,196,0,0.8)` : 'none',
+                    transform: `scale(${esActual ? 1.12 : 1})`,
+                  }}
+                >
+                  {hecho ? '✓' : k + 1}
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+        {/* Paso actual en grande */}
+        {it && (
+          <div
+            style={{
+              width: vertical ? '86%' : '64%',
+              background: 'rgba(255,255,255,0.08)',
+              border: '4px solid rgba(245,196,0,0.7)',
+              borderRadius: 34,
+              padding: vertical ? '36px 34px' : '28px 40px',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
+              opacity: Math.min(1, Math.max(0, entra)),
+              transform: `translateX(${(1 - Math.min(1, entra)) * 220}px)`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}
+          >
+            <div style={{alignSelf: 'flex-start', background: AMARILLO, color: '#111', fontWeight: 900, fontSize: base * 0.55, letterSpacing: 4, padding: '8px 22px', borderRadius: 999}}>
+              PASO {actual + 1} DE {n}
+            </div>
+            <div style={{color: '#fff', fontWeight: 900, fontSize: it.texto.length > 34 ? base * 0.9 : base * 1.1, lineHeight: 1.12}}>{it.texto}</div>
+            {it.nota && <div style={{color: 'rgba(255,255,255,0.82)', fontWeight: 700, fontSize: base * 0.62, lineHeight: 1.25}}>{it.nota}</div>}
+          </div>
+        )}
+      </AbsoluteFill>
+      <Invi pose="senala" size={vertical ? 240 : 230} desde={8} style={{left: 6, bottom: vertical ? '27%' : '4%'}} />
+    </AbsoluteFill>
+  );
+};
+
+// Plantilla animada "Calculo": la cuenta se arma en pantalla, numero por numero,
+// y el resultado sale grande contando desde cero. Cada item trae "texto" (el valor,
+// por ejemplo "1.500 W"), "nota" (que es, por ejemplo "Potencia") y "op" (el signo
+// que va antes: ×, ÷, +, −). "resultado" es el total y "cuandoResultado" la frase del guion.
+const leerNumero = (s: string) => {
+  const m = s.match(/\d[\d.,]*/);
+  if (!m) return null;
+  const crudo = m[0].replace(/[.,]$/, '');
+  const dec = crudo.match(/,(\d{1,2})$/);
+  const decimales = dec ? dec[1].length : 0;
+  const valor = Number(crudo.replace(/[.,](?=\d{3}(\D|$))/g, '').replace(',', '.'));
+  return Number.isFinite(valor) ? {crudo, valor, decimales} : null;
+};
+const formatear = (v: number, decimales: number) => {
+  const [ent, dec] = v.toFixed(decimales).split('.');
+  const conPuntos = ent.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return dec ? `${conPuntos},${dec}` : conPuntos;
+};
+
+const PlantillaCalculo = ({titulo, items, resultado, cuandoResultado, dur, inicio, captions}: {titulo?: string; items: ItemLista[]; resultado?: string; cuandoResultado?: string; dur: number; inicio: number; captions: Caption[]}) => {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const vertical = height > width;
+  const lista = items.map((it) => (typeof it === 'string' ? {texto: it} : it)).filter((it) => it && it.texto) as {texto: string; nota?: string; op?: string; cuando?: string}[];
+  const n = Math.max(1, lista.length);
+  const base = vertical ? width * 0.07 : height * 0.075;
+
+  const paso = Math.max(6, Math.floor((dur * 0.55) / n));
+  const momentos = lista.map((it, k) => {
+    const s = buscarInicio(captions, it.cuando, inicio);
+    const f = s !== null ? Math.round((s - inicio) * fps) : Math.round(0.6 * fps) + k * paso;
+    return Math.max(0, Math.min(dur - 6, f));
+  });
+  for (let k = 1; k < momentos.length; k++) if (momentos[k] <= momentos[k - 1]) momentos[k] = momentos[k - 1] + Math.round(0.6 * fps);
+  const sr = buscarInicio(captions, cuandoResultado, inicio);
+  const tRes = Math.min(dur - 10, Math.max(sr !== null ? Math.round((sr - inicio) * fps) : 0, Math.max(...momentos) + Math.round(1.1 * fps)));
+
+  const num = resultado ? leerNumero(resultado) : null;
+  const avance = interpolate(frame, [tRes, tRes + Math.round(1.1 * fps)], [0, 1], {...fijo, easing: (x) => 1 - Math.pow(1 - x, 3)});
+  const textoRes = resultado && num ? resultado.replace(num.crudo, formatear(num.valor * avance, num.decimales)) : resultado ?? '';
+  const entraRes = spring({frame: frame - tRes, fps, config: {damping: 10, stiffness: 160}});
+  const termino = frame >= tRes + Math.round(1.1 * fps);
+  const latido = termino ? 1 + Math.sin((frame - tRes) / 6) * 0.025 : 1;
+  const fundido = interpolate(frame, [0, FUNDIDO], [0, 1], fijo);
+
+  const Signo = ({s, vis}: {s: string; vis: number}) => (
+    <div style={{color: AMARILLO, fontWeight: 900, fontSize: base * 1.1, opacity: vis, transform: `scale(${0.5 + 0.5 * vis})`, textShadow: '0 4px 14px rgba(0,0,0,0.6)'}}>{s}</div>
+  );
+
+  return (
+    <AbsoluteFill style={{opacity: fundido, background: 'linear-gradient(160deg, #101a33 0%, #23255e 55%, #3a1f5c 100%)'}}>
+      <Sfx src="whoosh.mp3" at={0} vol={0.2} />
+      {momentos.map((m, k) => (
+        <Sfx key={`c${k}`} src="pop.mp3" at={m} vol={0.25} />
+      ))}
+      {resultado && <Sfx src="impacto.mp3" at={tRes} vol={0.24} />}
+      {resultado && <Sfx src="ding.mp3" at={tRes + Math.round(1.1 * fps)} vol={0.22} />}
+      <AbsoluteFill style={{backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 2px, transparent 2px), linear-gradient(90deg, rgba(255,255,255,0.05) 2px, transparent 2px)', backgroundSize: '60px 60px'}} />
+      <AbsoluteFill style={{flexDirection: 'column', alignItems: 'center', justifyContent: vertical ? 'flex-start' : 'center', paddingTop: vertical ? '11%' : 0, paddingBottom: vertical ? 0 : '12%', gap: vertical ? 22 : 34}}>
+        {titulo && (
+          <div style={{color: '#fff', fontWeight: 900, fontSize: base * 0.72, textTransform: 'uppercase', letterSpacing: 3, textAlign: 'center', width: '88%', background: 'rgba(0,0,0,0.3)', padding: '10px 24px', borderRadius: 18, borderBottom: `6px solid ${AMARILLO}`}}>
+            {titulo}
+          </div>
+        )}
+        <div style={{display: 'flex', flexDirection: vertical ? 'column' : 'row', flexWrap: vertical ? 'nowrap' : 'wrap', alignItems: 'center', justifyContent: 'center', gap: vertical ? 6 : 22, width: '94%'}}>
+          {lista.map((it, k) => {
+            const sp = spring({frame: frame - momentos[k], fps, config: {damping: 12, stiffness: 170}});
+            const vis = frame >= momentos[k] ? Math.min(1, Math.max(0, sp)) : 0;
+            return (
+              <React.Fragment key={k}>
+                {k > 0 && <Signo s={it.op || '×'} vis={vis} />}
+                <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: vis, transform: `translateY(${(1 - vis) * 50}px) scale(${0.7 + 0.3 * vis})`}}>
+                  <div style={{background: 'rgba(255,255,255,0.1)', border: '4px solid rgba(255,255,255,0.35)', borderRadius: 22, padding: vertical ? '10px 30px' : '12px 28px', color: '#fff', fontWeight: 900, fontSize: base * (it.texto.length > 9 ? 0.85 : 1), whiteSpace: 'nowrap'}}>{it.texto}</div>
+                  {it.nota && <div style={{color: '#9fd3ff', fontWeight: 800, fontSize: base * 0.42, marginTop: 6, textTransform: 'uppercase', letterSpacing: 2}}>{it.nota}</div>}
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+        {resultado && frame >= tRes && (
+          <div style={{display: 'flex', flexDirection: vertical ? 'column' : 'row', alignItems: 'center', gap: vertical ? 4 : 24, marginTop: vertical ? 6 : 10}}>
+            <Signo s="=" vis={Math.min(1, Math.max(0, entraRes))} />
+            <div
+              style={{
+                background: AMARILLO,
+                color: '#111',
+                fontWeight: 900,
+                fontSize: base * (textoRes.length > 14 ? 0.95 : 1.25),
+                padding: vertical ? '16px 38px' : '14px 44px',
+                borderRadius: 26,
+                border: '6px solid #fff',
+                whiteSpace: 'nowrap',
+                boxShadow: `0 0 ${termino ? 50 : 20}px rgba(245,196,0,0.75), 0 14px 34px rgba(0,0,0,0.45)`,
+                transform: `scale(${(0.5 + 0.5 * Math.min(1, Math.max(0, entraRes))) * latido})`,
+              }}
+            >
+              {textoRes}
+            </div>
+          </div>
+        )}
+      </AbsoluteFill>
+      <Invi pose={termino ? 'pulgar' : 'senala'} size={vertical ? 230 : 220} desde={8} style={{left: 6, bottom: vertical ? '27%' : '4%'}} />
     </AbsoluteFill>
   );
 };
@@ -762,7 +1097,7 @@ const CierreCanal = () => {
 
 export const MyComposition = ({captions, plan}: VideoProps) => {
   const frame = useCurrentFrame();
-  const {fps, durationInFrames} = useVideoConfig();
+  const {fps, durationInFrames, width, height} = useVideoConfig();
   const t = frame / fps;
   const total = durationInFrames / fps;
 
@@ -819,16 +1154,32 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
     if (i + 1 >= plan.length) return;
     const p = toma.plantilla;
     let fin = -1;
-    if (p?.tipo === 'lista' || p?.tipo === 'sino') {
+    if (p?.tipo === 'lista' || p?.tipo === 'sino' || p?.tipo === 'pasos') {
       const items = [...(p.items ?? []), ...(p.si ?? []), ...(p.no ?? [])].map((it) => (typeof it === 'string' ? {texto: it} : it));
       for (const it of items) {
         const s = buscarInicio(captions, it.cuando, inicios[i]);
         if (s !== null) fin = Math.max(fin, s);
       }
-      if (fin < 0) fin = inicios[i] + Math.max(4, items.length * 1.2);
-      fin += 1.8;
+      if (fin < 0) fin = inicios[i] + Math.max(4, items.length * (p.tipo === 'pasos' ? 2.5 : 1.2));
+      fin += p.tipo === 'pasos' ? 3 : 1.8;
+    } else if (p?.tipo === 'calculo') {
+      const items = (p.items ?? []).map((it) => (typeof it === 'string' ? {texto: it} : it));
+      for (const it of items) {
+        const s = buscarInicio(captions, it.cuando, inicios[i]);
+        if (s !== null) fin = Math.max(fin, s);
+      }
+      const sr = buscarInicio(captions, p.cuandoResultado, inicios[i]);
+      if (sr !== null) fin = Math.max(fin, sr);
+      fin = Math.max(fin, inicios[i] + items.length * 1.2 + 1.5) + 3.5;
     } else if (p?.tipo === 'mito') {
       fin = inicios[i] + 4;
+    } else if (p?.tipo === 'clase') {
+      const items = (p.items ?? []).map((it) => (typeof it === 'string' ? {texto: it} : it));
+      for (const it of items) {
+        const s = buscarInicio(captions, it.cuando, inicios[i]);
+        if (s !== null) fin = Math.max(fin, s);
+      }
+      fin = Math.max(fin, inicios[i] + 3) + 3.2;
     }
     if (fin > inicios[i + 1]) {
       const limite = i + 2 < plan.length ? inicios[i + 2] - 1 : total - 1;
@@ -895,6 +1246,12 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
               <PlantillaMito mito={toma.plantilla.mito} verdad={toma.plantilla.verdad} dur={hasta - desde} />
             ) : toma.plantilla?.tipo === 'lista' && toma.plantilla.items?.length ? (
               <PlantillaLista titulo={toma.plantilla.titulo} items={toma.plantilla.items} dur={hasta - desde} inicio={inicios[i]} captions={captions} />
+            ) : toma.plantilla?.tipo === 'clase' && toma.plantilla.letra ? (
+              <PlantillaClase letra={toma.plantilla.letra} titulo={toma.plantilla.titulo} items={toma.plantilla.items ?? []} agente={toma.plantilla.agente} nunca={toma.plantilla.nunca} dur={hasta - desde} inicio={inicios[i]} captions={captions} />
+            ) : toma.plantilla?.tipo === 'pasos' && toma.plantilla.items?.length ? (
+              <PlantillaPasos titulo={toma.plantilla.titulo} items={toma.plantilla.items} dur={hasta - desde} inicio={inicios[i]} captions={captions} />
+            ) : toma.plantilla?.tipo === 'calculo' && toma.plantilla.items?.length ? (
+              <PlantillaCalculo titulo={toma.plantilla.titulo} items={toma.plantilla.items} resultado={toma.plantilla.resultado} cuandoResultado={toma.plantilla.cuandoResultado} dur={hasta - desde} inicio={inicios[i]} captions={captions} />
             ) : toma.plantilla?.tipo === 'sino' && ((toma.plantilla.si?.length ?? 0) + (toma.plantilla.no?.length ?? 0)) > 0 ? (
               <PlantillaSiNo titulo={toma.plantilla.titulo} si={toma.plantilla.si ?? []} no={toma.plantilla.no ?? []} tituloSi={toma.plantilla.tituloSi} tituloNo={toma.plantilla.tituloNo} dur={hasta - desde} inicio={inicios[i]} captions={captions} />
             ) : (
@@ -917,7 +1274,7 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
         </Sequence>
       ))}
 
-      {PERSONAJE && !TITULO && (
+      {PERSONAJE && (!TITULO || height > width) && (
         <Sequence from={0} durationInFrames={Math.round(2.3 * fps)}>
           <InviIntro />
         </Sequence>
