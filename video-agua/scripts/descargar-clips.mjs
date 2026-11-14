@@ -25,10 +25,20 @@ const RAROS = /\b(ai|a\.i\.|generated|artificial intelligence|anthropomorphic|hu
 // Contenido de moda, sensual o con poca ropa: nunca entra, en ningun canal.
 // Pexels no tiene filtro de contenido sensible para videos, por eso se revisa la descripcion.
 const SENSIBLE = /\b(model|models|modeling|modelling|fashion|posing|pose|poses|photoshoot|photo shoot|glamour|glamorous|beauty|lingerie|underwear|bikini|bikinis|swimsuit|swimsuits|swimwear|bathing suit|sexy|sensual|seductive|nude|naked|topless|erotic|boudoir|bra|panties|thong|fur coat|faux fur|legs|thighs|buttocks|cleavage|provocative|hot girl|hot woman)\b/i;
+// Palabras que no deben salir en este video (las pone el workflow con CLIPS_EVITAR,
+// por ejemplo "car|engine|fan" en un video de aires acondicionados).
+const EVITAR_TXT = (process.env.CLIPS_EVITAR ?? '').split(/[|,]/).map((w) => w.trim().toLowerCase()).filter(Boolean).join('|');
+const EVITAR = EVITAR_TXT ? new RegExp(`\\b(${EVITAR_TXT})s?\\b`, 'i') : null;
+if (EVITAR) console.log(`Clips prohibidos en este video: ${EVITAR_TXT}`);
 const esRaro = (descripcion) => {
   const t = String(descripcion).toLowerCase().replace(/[-_/]+/g, ' ');
-  return RAROS.test(t) || SENSIBLE.test(t);
+  return RAROS.test(t) || SENSIBLE.test(t) || (!!EVITAR && EVITAR.test(t));
 };
+
+// Modo estricto: nunca usar un clip que no coincida con la busqueda. Si no hay uno
+// que coincida, se repite un clip bueno del mismo video (mejor repetido que incoherente).
+const ESTRICTO = (process.env.CLIPS_ESTRICTO ?? 'no').toLowerCase() === 'si';
+if (ESTRICTO) console.log('Modo estricto: si no hay un clip que coincida, se repite uno bueno del video');
 
 // Palabra obligatoria (opcional). En los videos de perros el workflow pone
 // CLIPS_OBLIGATORIA=dog|puppy, y asi ningun clip entra si no tiene un perro.
@@ -239,11 +249,13 @@ for (const toma of tomas) {
     );
   } else {
     intentos.push(() => buscarFotoPexels(buscar, true));
-    intentos.push(
-      () => buscarVideoPexels(buscar, false),
-      () => buscarVideoPixabay(buscar, false),
-      () => buscarFotoPexels(buscar, false),
-    );
+    if (!ESTRICTO) {
+      intentos.push(
+        () => buscarVideoPexels(buscar, false),
+        () => buscarVideoPixabay(buscar, false),
+        () => buscarFotoPexels(buscar, false),
+      );
+    }
   }
 
   // Primero sin repetir clips de videos anteriores; si no hay, se permiten
