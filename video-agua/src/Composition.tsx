@@ -6,7 +6,7 @@ import {PERRITO} from './Perrito';
 export type Caption = {start: number; end: number; text: string};
 export type Etiqueta = {texto: string; cuando?: string};
 export type ItemLista = string | {texto: string; cuando?: string; nota?: string; op?: string};
-export type Plantilla = {tipo: string; mito?: string; verdad?: string; titulo?: string; items?: ItemLista[]; si?: ItemLista[]; no?: ItemLista[]; tituloSi?: string; tituloNo?: string; letra?: string; agente?: string; nunca?: string; resultado?: string; cuandoResultado?: string};
+export type Plantilla = {tipo: string; mito?: string; verdad?: string; titulo?: string; items?: ItemLista[]; si?: ItemLista[]; no?: ItemLista[]; tituloSi?: string; tituloNo?: string; letra?: string; agente?: string; nunca?: string; resultado?: string; cuandoResultado?: string; numero?: string | number; pregunta?: string; opciones?: string[]; correcta?: string; cuandoCuenta?: string; cuandoRevela?: string};
 export type Toma = {desde: string; clip: string; buscar: string; seccion?: string; etiquetas?: unknown; plantilla?: Plantilla};
 export type VideoProps = {captions: Caption[]; plan: Toma[]};
 
@@ -220,17 +220,20 @@ const InviIntro = () => {
 // Final del video: Invi aprueba con un globo de texto que invita a seguir el canal
 const CierreInvi = () => {
   const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
+  const {fps, width, height} = useVideoConfig();
+  const vertical = height > width;
+  // En horizontal Invi va mas pequeno y el globo mas arriba, para que no tape el texto
+  const tam = vertical ? 440 : 360;
   const globo = spring({frame: frame - 6, fps, config: {damping: 11, stiffness: 160}});
   return (
     <AbsoluteFill>
-      <div style={{position: 'absolute', left: 0, right: 0, bottom: '56%', display: 'flex', justifyContent: 'center', opacity: Math.min(1, Math.max(0, globo)), transform: `scale(${0.6 + 0.4 * Math.max(0, globo)})`}}>
+      <div style={{position: 'absolute', left: 0, right: 0, bottom: vertical ? '56%' : '61%', display: 'flex', justifyContent: 'center', opacity: Math.min(1, Math.max(0, globo)), transform: `scale(${0.6 + 0.4 * Math.max(0, globo)})`}}>
         <div style={{position: 'relative', background: '#ffffff', color: '#10233a', fontWeight: 900, fontSize: 54, padding: '22px 40px', borderRadius: 40, border: '6px solid #10233a', boxShadow: '0 12px 30px rgba(0,0,0,0.45)', textAlign: 'center', maxWidth: '80%'}}>
           {CIERRE_INVI}
           <div style={{position: 'absolute', left: '50%', bottom: -34, width: 0, height: 0, borderLeft: '22px solid transparent', borderRight: '22px solid transparent', borderTop: '34px solid #10233a', transform: 'translateX(-50%)'}} />
         </div>
       </div>
-      <Invi pose="pulgar" size={440} style={{left: 'calc(50% - 220px)', bottom: '29%'}} />
+      <Invi pose="pulgar" size={tam} style={{left: `calc(50% - ${tam / 2}px)`, bottom: vertical ? '29%' : '20%'}} />
     </AbsoluteFill>
   );
 };
@@ -802,6 +805,156 @@ const PlantillaCalculo = ({titulo, items, resultado, cuandoResultado, dur, inici
   );
 };
 
+// Plantilla animada "Reto": pregunta con tres opciones, cuenta regresiva y revelacion.
+// La voz lee la pregunta y las opciones, dice "Tres. Dos. Uno." y luego la respuesta.
+// Campos: numero, pregunta, opciones (3 textos), correcta ("A", "B" o "C"),
+// cuandoCuenta (por defecto "tres") y cuandoRevela (frase del guion con la respuesta).
+const COLORES_OPCION = ['#2f80ff', '#ff8a00', '#ff3d9a'];
+const LETRAS = ['A', 'B', 'C', 'D'];
+const azar = (n: number) => {
+  const x = Math.sin(n * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+const PlantillaReto = ({p, dur, inicio, captions}: {p: Plantilla; dur: number; inicio: number; captions: Caption[]}) => {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const vertical = height > width;
+  const base = vertical ? width * 0.076 : height * 0.06;
+  const opciones = (p.opciones ?? []).slice(0, 4);
+  const correcta = Math.max(0, LETRAS.indexOf(String(p.correcta ?? 'A').trim().toUpperCase().charAt(0)));
+  const aFrame = (s: number | null) => (s !== null ? Math.round((s - inicio) * fps) : null);
+
+  // Cuando entra cada opcion (cuando la voz la nombra; si no, repartidas al inicio)
+  const momentos = opciones.map((o, k) => {
+    const f = aFrame(buscarInicio(captions, o, inicio));
+    return Math.max(Math.round(0.3 * fps), Math.min(dur - 20, f ?? Math.round((1.2 + k * 1.3) * fps)));
+  });
+  for (let k = 1; k < momentos.length; k++) if (momentos[k] <= momentos[k - 1]) momentos[k] = momentos[k - 1] + Math.round(0.5 * fps);
+  const ultimaOpcion = Math.max(0, ...momentos);
+
+  // Cuenta regresiva y revelacion, pegadas a la voz
+  const sCuenta = buscarInicio(captions, p.cuandoCuenta || 'tres', inicio + ultimaOpcion / fps);
+  const tCuenta = Math.max(ultimaOpcion + Math.round(0.6 * fps), aFrame(sCuenta) ?? ultimaOpcion + Math.round(2.2 * fps));
+  const sRevela = buscarInicio(captions, p.cuandoRevela, inicio + tCuenta / fps);
+  const tRevela = Math.min(dur - 10, Math.max(tCuenta + Math.round(1.5 * fps), aFrame(sRevela) ?? tCuenta + Math.round(2.4 * fps)));
+  const numeros = [0, 1, 2].map((k) => tCuenta + Math.round(((tRevela - tCuenta) * k) / 3));
+  const revelado = frame >= tRevela;
+  const dr = frame - tRevela;
+
+  const fundido = interpolate(frame, [0, FUNDIDO], [0, 1], fijo);
+  const entra = spring({frame, fps, config: {damping: 12, stiffness: 140}});
+  const pulso = 1 + Math.sin(frame / 6) * 0.04;
+
+  // Anillo de la cuenta regresiva
+  const enCuenta = frame >= tCuenta && !revelado;
+  const numActual = numeros.filter((n) => frame >= n).length; // 1, 2 o 3
+  const progreso = interpolate(frame, [tCuenta, tRevela], [1, 0], fijo);
+  const anillo = vertical ? width * 0.24 : height * 0.2;
+  const r = 42;
+  const golpeNumero = spring({frame: frame - (numeros[numActual - 1] ?? 0), fps, config: {damping: 8, stiffness: 220}});
+
+  return (
+    <AbsoluteFill style={{opacity: fundido, background: 'linear-gradient(165deg, #2a0f5c 0%, #5a1a8c 45%, #b0186e 100%)', overflow: 'hidden'}}>
+      <Sfx src="whoosh.mp3" at={0} vol={0.2} />
+      <Sfx src="impacto.mp3" at={2} vol={0.24} />
+      {momentos.map((m, k) => (
+        <Sfx key={`o${k}`} src="pop.mp3" at={m} vol={0.26} />
+      ))}
+      {numeros.map((n, k) => (
+        <Sfx key={`t${k}`} src="tic.mp3" at={n} vol={0.5} />
+      ))}
+      <Sfx src="ding.mp3" at={tRevela} vol={0.3} />
+      <Sfx src="error.mp3" at={tRevela + 4} vol={0.18} />
+
+      {/* Rayos de luz girando detras */}
+      <AbsoluteFill
+        style={{
+          background: 'repeating-conic-gradient(from 0deg, rgba(255,255,255,0.10) 0deg 10deg, transparent 10deg 24deg)',
+          transform: `rotate(${frame * 0.4}deg) scale(2.2)`,
+          opacity: revelado ? 0.9 : 0.55,
+        }}
+      />
+      <AbsoluteFill style={{background: 'radial-gradient(circle at 50% 40%, rgba(255,215,0,0.18) 0%, transparent 60%)'}} />
+
+      <AbsoluteFill style={{flexDirection: 'column', alignItems: 'center', justifyContent: vertical ? 'flex-start' : 'center', paddingTop: vertical ? '9%' : 0, paddingBottom: vertical ? 0 : '10%', gap: vertical ? 40 : 22}}>
+        {/* Cabecera: RETO #N y el anillo de la cuenta */}
+        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 36, minHeight: anillo}}>
+          <div style={{background: AMARILLO, color: '#111', fontWeight: 900, fontSize: base * 0.95, letterSpacing: 3, padding: '12px 34px', borderRadius: 999, border: '6px solid #fff', boxShadow: '0 12px 30px rgba(0,0,0,0.4)', transform: `scale(${Math.max(0, entra) * pulso}) rotate(-3deg)`}}>
+            RETO{p.numero ? ` #${p.numero}` : ''}
+          </div>
+          {(enCuenta || revelado) && (
+            <div style={{position: 'relative', width: anillo, height: anillo, transform: `scale(${revelado ? 1 : 0.85 + 0.15 * Math.min(1, golpeNumero)})`}}>
+              <svg width={anillo} height={anillo} viewBox="0 0 100 100" style={{position: 'absolute', inset: 0}}>
+                <circle cx="50" cy="50" r={r} fill="rgba(0,0,0,0.45)" stroke="rgba(255,255,255,0.2)" strokeWidth="8" />
+                <circle cx="50" cy="50" r={r} fill="none" stroke={revelado ? VERDE : numActual === 3 ? ROJO_MITO : AMARILLO} strokeWidth="8" strokeLinecap="round" strokeDasharray={2 * Math.PI * r} strokeDashoffset={2 * Math.PI * r * (1 - (revelado ? 1 : progreso))} transform="rotate(-90 50 50)" />
+              </svg>
+              <div style={{position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, fontSize: anillo * (revelado ? 0.42 : 0.5)}}>
+                {revelado ? '✓' : 4 - Math.max(1, numActual)}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Pregunta */}
+        <div style={{width: vertical ? '88%' : '70%', textAlign: 'center', color: '#fff', fontWeight: 900, fontSize: (p.pregunta ?? '').length > 45 ? base * 0.95 : base * 1.1, lineHeight: 1.15, textShadow: '0 6px 0 rgba(0,0,0,0.35), 0 0 24px rgba(0,0,0,0.4)', opacity: Math.min(1, Math.max(0, entra)), transform: `translateY(${(1 - Math.min(1, entra)) * -40}px)`}}>
+          {p.pregunta}
+        </div>
+
+        {/* Opciones */}
+        <div style={{width: vertical ? '88%' : '62%', display: 'flex', flexDirection: 'column', gap: vertical ? 28 : 14}}>
+          {opciones.map((o, k) => {
+            if (frame < momentos[k]) return <div key={k} style={{height: base * 1.6}} />;
+            const sp = spring({frame: frame - momentos[k], fps, config: {damping: 11, stiffness: 180}});
+            const esCorrecta = k === correcta;
+            const color = revelado ? (esCorrecta ? VERDE : '#7a2a3a') : COLORES_OPCION[k % 3];
+            const temblor = revelado && !esCorrecta && dr < 14 ? Math.sin(dr * 1.9) * 14 * (1 - dr / 14) : 0;
+            const crece = revelado && esCorrecta ? 1 + 0.08 * Math.min(1, spring({frame: dr, fps, config: {damping: 7, stiffness: 200}})) : 1;
+            return (
+              <div
+                key={k}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 22,
+                  minHeight: base * 1.6,
+                  padding: '10px 22px 10px 12px',
+                  borderRadius: 999,
+                  background: color,
+                  border: `6px solid ${revelado && esCorrecta ? '#fff' : 'rgba(255,255,255,0.85)'}`,
+                  boxShadow: revelado && esCorrecta ? `0 0 ${40 + 20 * Math.sin(frame / 5)}px rgba(46,204,113,0.9)` : '0 10px 24px rgba(0,0,0,0.35)',
+                  opacity: Math.min(1, sp) * (revelado && !esCorrecta ? 0.6 : 1),
+                  transform: `translateX(${(1 - Math.min(1, sp)) * (k % 2 ? 300 : -300) + temblor}px) scale(${crece})`,
+                }}
+              >
+                <div style={{flex: '0 0 auto', width: base * 1.3, height: base * 1.3, borderRadius: '50%', background: '#fff', color: revelado ? (esCorrecta ? VERDE : '#7a2a3a') : COLORES_OPCION[k % 3], fontWeight: 900, fontSize: base * 0.85, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                  {revelado ? (esCorrecta ? '✓' : '✗') : LETRAS[k]}
+                </div>
+                <div style={{color: '#fff', fontWeight: 900, fontSize: o.length > 22 ? base * 0.78 : base * 0.92, lineHeight: 1.1, textShadow: '0 3px 0 rgba(0,0,0,0.25)'}}>{o}</div>
+              </div>
+            );
+          })}
+        </div>
+      </AbsoluteFill>
+
+      {/* Confeti al revelar */}
+      {revelado &&
+        Array.from({length: 46}).map((_, i) => {
+          const x = azar(i + 1) * 100;
+          const vel = 0.6 + azar(i + 50) * 0.8;
+          const y = -8 + (dr / fps) * 55 * vel;
+          if (y > 110) return null;
+          const colores = [AMARILLO, VERDE, '#2f80ff', '#ff3d9a', '#ffffff', '#ff8a00'];
+          const giro = dr * (6 + azar(i + 9) * 10);
+          const ancho = 14 + azar(i + 30) * 16;
+          return <div key={i} style={{position: 'absolute', left: `${x + Math.sin(dr / 8 + i) * 2}%`, top: `${y}%`, width: ancho, height: ancho * 0.55, background: colores[i % colores.length], borderRadius: 3, transform: `rotate(${giro}deg)`}} />;
+        })}
+
+      <Invi pose={revelado ? 'pulgar' : 'sorpresa'} size={vertical ? 250 : 220} desde={Math.round(2.3 * fps)} style={{right: 10, bottom: vertical ? '25%' : '4%'}} />
+    </AbsoluteFill>
+  );
+};
+
 const TarjetaSeccion = ({numero, titulo}: {numero: number; titulo: string}) => {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
@@ -1171,6 +1324,9 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
       const sr = buscarInicio(captions, p.cuandoResultado, inicios[i]);
       if (sr !== null) fin = Math.max(fin, sr);
       fin = Math.max(fin, inicios[i] + items.length * 1.2 + 1.5) + 3.5;
+    } else if (p?.tipo === 'reto') {
+      const sr = buscarInicio(captions, p.cuandoRevela, inicios[i]);
+      fin = (sr ?? inicios[i] + 9) + 2.8;
     } else if (p?.tipo === 'mito') {
       fin = inicios[i] + 4;
     } else if (p?.tipo === 'clase') {
@@ -1252,6 +1408,8 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
               <PlantillaPasos titulo={toma.plantilla.titulo} items={toma.plantilla.items} dur={hasta - desde} inicio={inicios[i]} captions={captions} />
             ) : toma.plantilla?.tipo === 'calculo' && toma.plantilla.items?.length ? (
               <PlantillaCalculo titulo={toma.plantilla.titulo} items={toma.plantilla.items} resultado={toma.plantilla.resultado} cuandoResultado={toma.plantilla.cuandoResultado} dur={hasta - desde} inicio={inicios[i]} captions={captions} />
+            ) : toma.plantilla?.tipo === 'reto' && toma.plantilla.pregunta && toma.plantilla.opciones?.length ? (
+              <PlantillaReto p={toma.plantilla} dur={hasta - desde} inicio={inicios[i]} captions={captions} />
             ) : toma.plantilla?.tipo === 'sino' && ((toma.plantilla.si?.length ?? 0) + (toma.plantilla.no?.length ?? 0)) > 0 ? (
               <PlantillaSiNo titulo={toma.plantilla.titulo} si={toma.plantilla.si ?? []} no={toma.plantilla.no ?? []} tituloSi={toma.plantilla.tituloSi} tituloNo={toma.plantilla.tituloNo} dur={hasta - desde} inicio={inicios[i]} captions={captions} />
             ) : (
