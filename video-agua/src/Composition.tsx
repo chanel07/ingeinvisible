@@ -7,7 +7,7 @@ export type Caption = {start: number; end: number; text: string};
 export type Etiqueta = {texto: string; cuando?: string};
 export type ItemLista = string | {texto: string; cuando?: string; nota?: string; op?: string};
 export type Plantilla = {tipo: string; mito?: string; verdad?: string; titulo?: string; items?: ItemLista[]; si?: ItemLista[]; no?: ItemLista[]; tituloSi?: string; tituloNo?: string; letra?: string; agente?: string; nunca?: string; resultado?: string; cuandoResultado?: string; numero?: string | number; pregunta?: string; opciones?: string[]; correcta?: string; cuandoCuenta?: string; cuandoRevela?: string};
-export type Toma = {desde: string; clip: string; buscar: string; seccion?: string; etiquetas?: unknown; plantilla?: Plantilla};
+export type Toma = {desde: string; clip: string; buscar: string; seccion?: string; etiquetas?: unknown; plantilla?: Plantilla; banner?: string};
 export type VideoProps = {captions: Caption[]; plan: Toma[]};
 
 // Marca del canal. Se cambia con la variable REMOTION_MARCA en el workflow.
@@ -409,7 +409,9 @@ const PlantillaSiNo = ({titulo, si, no, tituloSi, tituloNo, dur, inicio, caption
   const listaSi = aItems(si);
   const listaNo = aItems(no);
   const n = Math.max(1, listaSi.length + listaNo.length);
-  const base = (vertical ? width * 0.05 : height * 0.055) * (Math.max(listaSi.length, listaNo.length) > 4 ? 0.85 : 1);
+  // Con uno o dos puntos por lado (la regla final de "Mientras ves esto") todo va mas grande y centrado
+  const pocos = Math.max(listaSi.length, listaNo.length) <= 2;
+  const base = (vertical ? width * 0.05 : height * 0.055) * (Math.max(listaSi.length, listaNo.length) > 4 ? 0.85 : pocos ? 1.25 : 1);
 
   const margen = Math.round(0.4 * fps);
   const paso = Math.max(1, Math.floor((dur - margen * 2) / n));
@@ -429,7 +431,7 @@ const PlantillaSiNo = ({titulo, si, no, tituloSi, tituloNo, dur, inicio, caption
     const color = esSi ? VERDE : ROJO_MITO;
     return (
       <div style={{flex: 1, display: 'flex', flexDirection: 'column', gap: vertical ? 18 : 12, padding: vertical ? '22px 16px' : '18px 22px', borderRadius: 30, background: esSi ? 'rgba(46,204,113,0.14)' : 'rgba(255,77,77,0.14)', boxShadow: `0 0 0 4px ${color}55`, opacity: entra, transform: `translateY(${(1 - entra) * 60}px)`}}>
-        <div style={{alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 12, background: color, color: '#fff', fontWeight: 900, fontSize: base * 1.05, letterSpacing: 3, padding: '8px 26px', borderRadius: 999, marginBottom: 6, boxShadow: '0 8px 20px rgba(0,0,0,0.35)'}}>
+        <div style={{alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 12, background: color, color: '#fff', fontWeight: 900, fontSize: base * 1.05, letterSpacing: 3, padding: '8px 26px', borderRadius: 999, marginBottom: 6, whiteSpace: 'nowrap', boxShadow: '0 8px 20px rgba(0,0,0,0.35)'}}>
           <IconoClave tipo={esSi ? 'check' : 'x'} size={base * 1.2} />
           {cabecera}
         </div>
@@ -458,7 +460,7 @@ const PlantillaSiNo = ({titulo, si, no, tituloSi, tituloNo, dur, inicio, caption
       ))}
       <Invi pose="senala" size={240} desde={8} style={{left: 6, bottom: vertical ? '27%' : '4%'}} />
       <AbsoluteFill style={{background: `radial-gradient(circle at 50% 20%, rgba(245,196,0,${0.08 + 0.05 * brillo}) 0%, transparent 55%)`}} />
-      <AbsoluteFill style={{alignItems: 'center', justifyContent: 'flex-start', paddingTop: vertical ? '11%' : '5%', flexDirection: 'column', gap: vertical ? 26 : 16}}>
+      <AbsoluteFill style={{alignItems: 'center', justifyContent: 'flex-start', paddingTop: vertical ? (pocos ? '20%' : '11%') : '5%', flexDirection: 'column', gap: vertical ? 26 : 16}}>
         {titulo && (
           <div style={{color: AMARILLO, fontWeight: 900, fontSize: base * 1.25, textTransform: 'uppercase', letterSpacing: 2, textAlign: 'center', width: '88%', opacity: entra, textShadow: '0 6px 24px rgba(0,0,0,0.6)'}}>
             {titulo}
@@ -955,6 +957,37 @@ const PlantillaReto = ({p, dur, inicio, captions}: {p: Plantilla; dur: number; i
   );
 };
 
+// Cartel fijo de arriba para la serie "Mientras ves esto": un ojo dibujado y el texto
+// con puntos suspensivos animados. Sale mientras pasan los clips, antes de la regla final.
+const BannerMientras = ({texto}: {texto: string}) => {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const vertical = height > width;
+  const entra = spring({frame: frame - 3, fps, config: {damping: 11, stiffness: 170}});
+  const pulso = 1 + Math.sin(frame / 8) * 0.025;
+  const puntos = '.'.repeat(1 + (Math.floor(frame / 9) % 3));
+  const parpadeo = frame % 75 > 70 ? 0.15 : 1;
+  const tam = vertical ? width * 0.062 : height * 0.06;
+  return (
+    <div style={{position: 'absolute', top: vertical ? '7%' : '9%', left: 0, right: 0, display: 'flex', justifyContent: 'center', opacity: Math.min(1, Math.max(0, entra)), transform: `translateY(${(1 - Math.min(1, entra)) * -80}px) scale(${pulso})`}}>
+      <div style={{display: 'flex', alignItems: 'center', gap: 18, background: 'rgba(8,12,20,0.88)', border: `6px solid ${AMARILLO}`, borderRadius: 26, padding: '14px 30px', boxShadow: '0 14px 34px rgba(0,0,0,0.5)'}}>
+        <svg width={tam * 1.5} height={tam * 1.5} viewBox="0 0 100 100">
+          <path d="M6 50 Q50 6 94 50 Q50 94 6 50 Z" fill="#fff" stroke="#111" strokeWidth="6" />
+          <g transform={`translate(50 50) scale(1 ${parpadeo})`}>
+            <circle r="20" fill="#1e6fe0" />
+            <circle r="10" fill="#111" />
+            <circle cx="-6" cy="-7" r="5" fill="#fff" />
+          </g>
+        </svg>
+        <div style={{color: '#fff', fontWeight: 900, fontSize: tam, letterSpacing: 2, textTransform: 'uppercase', whiteSpace: 'nowrap'}}>
+          {texto}
+          <span style={{color: AMARILLO, display: 'inline-block', width: tam * 1.2, textAlign: 'left'}}>{puntos}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const TarjetaSeccion = ({numero, titulo}: {numero: number; titulo: string}) => {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
@@ -1343,6 +1376,11 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
     }
   });
 
+  // Serie "Mientras ves esto": cartel arriba hasta que empieza la regla final
+  const BANNER = plan[0]?.banner ?? '';
+  const idxRegla = plan.findIndex((tm, i) => i > 0 && tm.plantilla);
+  const finBanner = idxRegla > 0 ? Math.round(inicios[idxRegla] * fps) : durationInFrames - Math.round(2.5 * fps);
+
   let contador = 0;
   const secciones = plan
     // La primera tarjeta nunca sale en el primer segundo: asi el inicio del video
@@ -1432,13 +1470,20 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
         </Sequence>
       ))}
 
+      {BANNER && finBanner > 0 && (
+        <Sequence from={0} durationInFrames={finBanner}>
+          <BannerMientras texto={BANNER} />
+          <Sfx src="pop.mp3" at={3} vol={0.2} />
+        </Sequence>
+      )}
+
       {PERSONAJE && (!TITULO || height > width) && (
         <Sequence from={0} durationInFrames={Math.round(2.3 * fps)}>
           <InviIntro />
         </Sequence>
       )}
 
-      {TITULO && (
+      {TITULO && !BANNER && (
         <Sequence from={0} durationInFrames={Math.round(SEGUNDOS_TITULO * fps)}>
           <TituloInicio />
           <Sfx src="impacto.mp3" at={0} vol={0.3} />
