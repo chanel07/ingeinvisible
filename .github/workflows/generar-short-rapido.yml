@@ -158,12 +158,21 @@ jobs:
           if [ -f out/metadatos.txt ]; then
             TITULO=$(sed -n '2p' out/metadatos.txt)
           fi
-          echo "Título del video: $TITULO (en el Short no sale en pantalla: arranca Invi saludando)"
-          export REMOTION_TITULO=""
+          # En los retos la pregunta ya sale animada: sin titulo encima
+          if grep -q '"tipo": "reto"' public/plan.json; then
+            TITULO=""
+            echo "Short de RETO: sin título al inicio"
+          fi
+          echo "Título en pantalla: $TITULO"
+          export REMOTION_TITULO="$TITULO"
           export REMOTION_TITULO_SEG="1.2"
+          # Sonidos del reto (tic-tac y error): se fabrican aqui si no existen
+          mkdir -p public/sfx
+          [ -f public/sfx/tic.mp3 ] || ffmpeg -nostdin -y -loglevel error -f lavfi -i "sine=frequency=1500:duration=0.07" -af "afade=t=out:st=0.03:d=0.04,volume=2" -ar 44100 public/sfx/tic.mp3
+          [ -f public/sfx/error.mp3 ] || ffmpeg -nostdin -y -loglevel error -f lavfi -i "aevalsrc=0.35*sgn(sin(2*PI*140*t)):d=0.35:s=44100" -af "afade=t=out:st=0.25:d=0.1" public/sfx/error.mp3
           # Efectos de sonido: si falta alguno, el video sale sin efectos en vez de fallar
           SFX_OK=si
-          for s in whoosh pop ding tachar impacto; do
+          for s in whoosh pop ding tachar impacto tic error; do
             if [ ! -f "public/sfx/$s.mp3" ]; then
               echo "AVISO: falta public/sfx/$s.mp3, el video sale sin efectos de sonido"
               SFX_OK=no
