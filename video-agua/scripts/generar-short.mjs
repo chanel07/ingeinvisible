@@ -23,6 +23,38 @@ const GANCHO = (() => {
 // El tema sin instrucciones, para la investigacion
 const TEMA_CORTO = TEMA.split('OBLIGATORIO')[0].trim();
 
+// Modo RETO (serie "¿Adivinas?"): el tema trae una linea como
+// RETO: {"numero":7,"pregunta":"¿Qué gasta más luz al mes?","opciones":["El televisor","La nevera","El cargador del celular"],"correcta":"B"}
+// La pregunta, las opciones, la cuenta regresiva y la respuesta las arma el codigo
+// (asi la animacion queda exacta con la voz); la IA solo escribe la explicacion.
+const LETRAS = ['A', 'B', 'C', 'D'];
+const RETO = (() => {
+  const m = TEMA.match(/RETO:\s*(\{[\s\S]*?\})(?=\s+OBLIGATORIO|\s+B[uú]squedas|\s*$)/i);
+  if (!m) return null;
+  try {
+    const r = JSON.parse(m[1]);
+    if (r.pregunta && Array.isArray(r.opciones) && r.opciones.length >= 2 && r.correcta) return r;
+    console.log('AVISO: al RETO le falta pregunta, opciones o correcta; sale como Short normal');
+  } catch (e) {
+    console.log(`AVISO: el RETO no es un JSON válido (${e.message}); sale como Short normal`);
+  }
+  return null;
+})();
+const RETO_IDX = RETO ? Math.max(0, LETRAS.indexOf(String(RETO.correcta).trim().toUpperCase().charAt(0))) : 0;
+const minuscula = (t) => t.charAt(0).toLowerCase() + t.slice(1);
+const RETO_INTRO = RETO
+  ? [
+      `Reto número ${RETO.numero ?? 'uno'}.`,
+      /^¿/.test(RETO.pregunta) ? RETO.pregunta : `¿${RETO.pregunta.replace(/\?$/, '')}?`,
+      ...RETO.opciones.map((o, k) => `La ${LETRAS[k]}: ${minuscula(o)}.`),
+      'Comenta tu respuesta antes de que salga.',
+      'Tres. Dos. Uno.',
+      `¡Es la ${LETRAS[RETO_IDX]}: ${minuscula(RETO.opciones[RETO_IDX])}!`,
+    ].join(' ')
+  : '';
+const RETO_CIERRE = '¿Acertaste? Déjame tu letra en los comentarios.';
+if (RETO) console.log(`MODO RETO #${RETO.numero ?? '?'}: respuesta correcta ${LETRAS[RETO_IDX]} (${RETO.opciones[RETO_IDX]})`);
+
 // La investigacion con Google gasta cupo de Gemini. Solo se hace si el tema
 // dice INVESTIGAR, porque los temas normales ya traen toda la explicacion.
 const INVESTIGAR = /\bINVESTIGAR\b/.test(TEMA) || (process.env.INVESTIGAR ?? '').toLowerCase() === 'si';
@@ -157,16 +189,51 @@ Responde SOLO con este JSON:
 {"guion": "...", "plan": [{"desde": "", "clip": "nombre.mp4", "buscar": "english query", "etiquetas": [{"texto": "TEXTO", "cuando": "frase"}]}]}`;
 }
 
+// Prompt del modo RETO: la IA solo escribe la explicacion de la respuesta y sus tomas
+function promptReto(notas) {
+  return `Eres el guionista del canal de YouTube "Ingeniería Invisible". Este Short es un reto de la serie "¿Adivinas?": el narrador ya hizo la pregunta, leyó las opciones, hizo la cuenta regresiva y dijo la respuesta. Tú escribes SOLO lo que viene después: la explicación.
+
+RETO:
+Pregunta: ${RETO.pregunta}
+Opciones: ${RETO.opciones.map((o, k) => `${LETRAS[k]}) ${o}`).join(', ')}
+Respuesta correcta: ${LETRAS[RETO_IDX]}) ${RETO.opciones[RETO_IDX]}
+
+TEMA E INSTRUCCIONES DEL PRODUCTOR:
+${TEMA.replace(/RETO:\s*\{[\s\S]*?\}/i, '')}
+
+NOTAS DE INVESTIGACIÓN:
+${notas || '(sin notas: usa solo conocimiento seguro y evita números dudosos)'}
+
+REGLAS DE LA EXPLICACIÓN:
+- Entre 30 y 42 palabras. Es solo el texto que el narrador dice en voz alta.
+- Empieza directo con el porqué de la respuesta correcta. NO repitas la pregunta ni digas otra vez "es la ${LETRAS[RETO_IDX]}".
+- En una frase corta, di por qué la opción más tentadora de las otras no es.
+- Usa el mecanismo y los datos que vienen en el tema. No inventes números.
+- Tono de conversación con un amigo, de tú. Frases cortas. Números escritos en letras.
+- No termines con una pregunta ni invites a comentar: ese cierre lo pone el sistema.
+- PROHIBIDO: títulos, notas de clips o tomas, emojis, hashtags, corchetes, "sabías que", "increíble", "suscríbete".
+
+REGLAS DEL PLAN DE TOMAS (solo para la explicación):
+- Entre 3 y 4 tomas, una por cada frase de la explicación, en orden.
+- "desde": frase EXACTA de 3 a 6 palabras copiada de la explicación donde empieza esa toma. La primera toma lleva "desde": "".
+- "clip": nombre único en español con guiones, terminado en .mp4.
+- "buscar": búsqueda en INGLÉS para video de stock que muestre EXACTAMENTE la acción u objeto que dice la voz: verbo + objeto + detalle (por ejemplo "person opening refrigerator door"). Si el productor dio búsquedas, úsalas. Nunca subscribe, thank you, intro, outro, youtube ni texto.
+- "etiquetas": lista con 0 o 1 etiqueta por toma: {"texto": "máximo 3 palabras", "cuando": "frase exacta de la explicación"}.
+
+Responde SOLO con este JSON:
+{"guion": "la explicación", "plan": [{"desde": "", "clip": "nombre.mp4", "buscar": "english query", "etiquetas": []}]}`;
+}
+
 // Modelos para escribir el guion; el ultimo es el mas liviano, como respaldo
 const MODELOS_GUION = ['gemini-3.6-flash', 'gemini-2.5-flash'];
 if (GROQ) MODELOS_GUION.push('groq:openai/gpt-oss-120b', 'groq:qwen/qwen3.6-27b', 'groq:openai/gpt-oss-20b');
 
 // Limite de palabras: si el guion se pasa, se le pide a Gemini que lo acorte
-const MAX_PALABRAS = 70;
+const MAX_PALABRAS = RETO ? 48 : 70;
 const contarPalabras = (g) => g.replace(/[#*_\[\]]/g, ' ').split(/\s+/).filter(Boolean).length;
 
 async function generarGuion(notas) {
-  const base = promptGuion(notas);
+  const base = RETO ? promptReto(notas) : promptGuion(notas);
   let correccion = '';
   let respaldo = null; // ultimo guion valido aunque haya salido largo
   for (const modelo of MODELOS_GUION) {
@@ -296,7 +363,7 @@ function normalizarPlan(plan) {
       const p = t.plantilla;
       const plantillaOk =
         p && typeof p === 'object' && typeof p.tipo === 'string' &&
-        ((p.tipo === 'mito' && p.mito && p.verdad) || (p.tipo === 'lista' && Array.isArray(p.items) && p.items.length) || (p.tipo === 'sino' && (Array.isArray(p.si) || Array.isArray(p.no))));
+        ((p.tipo === 'mito' && p.mito && p.verdad) || (p.tipo === 'lista' && Array.isArray(p.items) && p.items.length) || (p.tipo === 'sino' && (Array.isArray(p.si) || Array.isArray(p.no))) || (p.tipo === 'reto' && p.pregunta && Array.isArray(p.opciones) && p.opciones.length));
       if (p && !plantillaOk) console.log(`  toma ${i + 1}: la plantilla vino incompleta y no se usa`);
 
       return {desde: i === 0 ? '' : String(t.desde ?? ''), clip: `${clip}.mp4`, buscar, etiquetas: plantillaOk ? [] : etiquetas, ...(plantillaOk ? {plantilla: p} : {})};
@@ -331,16 +398,44 @@ if (!resultado) {
   process.exit(1);
 }
 
-let guion = forzarGancho(limpiarGuion(resultado.guion));
-const plan = normalizarPlan(resultado.plan);
+let guion = RETO ? limpiarGuion(resultado.guion) : forzarGancho(limpiarGuion(resultado.guion));
+let plan = normalizarPlan(resultado.plan);
+
+// Modo RETO: se arma el guion completo (pregunta + opciones + cuenta + respuesta +
+// explicacion + cierre) y se pone primero la toma con la plantilla animada.
+if (RETO) {
+  const explicacion = guion;
+  guion = `${RETO_INTRO} ${explicacion} ${RETO_CIERRE}`;
+  if (plan.length) plan[0].desde = explicacion.split(/\s+/).slice(0, 5).join(' ').replace(/[.,;:!?¡¿"]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const primera = plan[0] ?? {clip: 'reto.mp4', buscar: TEMA_CORTO.split(' ').slice(0, 4).join(' ')};
+  plan = [
+    {
+      desde: '',
+      clip: primera.clip,
+      buscar: primera.buscar,
+      etiquetas: [],
+      plantilla: {
+        tipo: 'reto',
+        numero: RETO.numero ?? '',
+        pregunta: /^¿/.test(RETO.pregunta) ? RETO.pregunta : `¿${RETO.pregunta.replace(/\?$/, '')}?`,
+        opciones: RETO.opciones,
+        correcta: LETRAS[RETO_IDX],
+        cuandoCuenta: 'tres',
+        cuandoRevela: `Es la ${LETRAS[RETO_IDX]}`,
+      },
+    },
+    ...plan,
+  ];
+}
 
 const palabras = guion.split(/\s+/).filter(Boolean).length;
 const frases = guion.match(/[^.?!]+[.?!]+/g) ?? [guion];
 console.log(`PRIMERA: ${frases[0].trim()}`);
 console.log(`ULTIMA: ${frases[frases.length - 1].trim()}`);
-console.log(`PALABRAS: ${palabras}${palabras > 75 ? ' (AVISO: largo)' : ''}${palabras < 45 ? ' (AVISO: corto)' : ''}`);
+const LARGO = RETO ? 95 : 75;
+console.log(`PALABRAS: ${palabras}${palabras > LARGO ? ' (AVISO: largo)' : ''}${palabras < 45 ? ' (AVISO: corto)' : ''}`);
 const ultima = frases[frases.length - 1].trim();
-if (ultima.split(/\s+/).length < 8) console.log('AVISO: la última frase es muy corta, revisa que el cierre no haya quedado a medias');
+if (!RETO && ultima.split(/\s+/).length < 8) console.log('AVISO: la última frase es muy corta, revisa que el cierre no haya quedado a medias');
 
 await fs.writeFile('public/guion.txt', guion, 'utf8');
 await fs.writeFile('public/plan.json', JSON.stringify(plan, null, 2), 'utf8');
