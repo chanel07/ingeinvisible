@@ -55,6 +55,31 @@ const RETO_INTRO = RETO
 const RETO_CIERRE = '¿Acertaste? Déjame tu letra en los comentarios.';
 if (RETO) console.log(`MODO RETO #${RETO.numero ?? '?'}: respuesta correcta ${LETRAS[RETO_IDX]} (${RETO.opciones[RETO_IDX]})`);
 
+// Modo MIENTRAS (serie "Mientras ves esto"): el tema trae una linea como
+// MIENTRAS: {"nunca":"le eches agua","haz":"tápalo y apaga la estufa","cartelNunca":"Echarle agua","cartelHaz":"Taparlo y apagar"}
+// Una escena del peligro, un consejo corto y al final la regla en la plantilla SÍ/NO.
+const MIENTRAS = (() => {
+  if (RETO) return null;
+  const m = TEMA.match(/MIENTRAS:\s*(\{[\s\S]*?\})(?=\s+OBLIGATORIO|\s+B[uú]squedas|\s*$)/i);
+  if (!m) return null;
+  try {
+    const r = JSON.parse(m[1]);
+    if (r.nunca && r.haz) {
+      const limpio = (t) => String(t).trim().replace(/[.!]+$/, '');
+      // cartelNunca y cartelHaz: el texto corto que sale en la tarjeta final (opcional)
+      return {nunca: limpio(r.nunca), haz: limpio(r.haz), cartelNunca: r.cartelNunca ? limpio(r.cartelNunca) : '', cartelHaz: r.cartelHaz ? limpio(r.cartelHaz) : ''};
+    }
+    console.log('AVISO: a MIENTRAS le falta "nunca" o "haz"; sale como Short normal');
+  } catch (e) {
+    console.log(`AVISO: MIENTRAS no es un JSON válido (${e.message}); sale como Short normal`);
+  }
+  return null;
+})();
+const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+const MIENTRAS_INICIO = 'Mientras ves esto, pon atención: esto te puede salvar.';
+const MIENTRAS_REGLA = MIENTRAS ? `Así que nunca ${MIENTRAS.nunca}. ${mayuscula(MIENTRAS.haz)}. Ahora ya lo sabes.` : '';
+if (MIENTRAS) console.log(`MODO MIENTRAS: nunca "${MIENTRAS.nunca}" / haz "${MIENTRAS.haz}"`);
+
 // La investigacion con Google gasta cupo de Gemini. Solo se hace si el tema
 // dice INVESTIGAR, porque los temas normales ya traen toda la explicacion.
 const INVESTIGAR = /\bINVESTIGAR\b/.test(TEMA) || (process.env.INVESTIGAR ?? '').toLowerCase() === 'si';
@@ -224,16 +249,49 @@ Responde SOLO con este JSON:
 {"guion": "la explicación", "plan": [{"desde": "", "clip": "nombre.mp4", "buscar": "english query", "etiquetas": []}]}`;
 }
 
+// Prompt del modo MIENTRAS: la IA escribe solo el consejo del medio y sus tomas
+function promptMientras(notas) {
+  return `Eres el guionista del canal de YouTube "Ingeniería Invisible". Este Short es de la serie "Mientras ves esto": en pantalla se ve una escena de peligro y el narrador da un consejo que puede salvar a alguien.
+
+El narrador YA dijo al inicio: "${MIENTRAS_INICIO}"
+Y al final el sistema dirá: "${MIENTRAS_REGLA}"
+Tú escribes SOLO lo del medio.
+
+TEMA E INSTRUCCIONES DEL PRODUCTOR:
+${TEMA.replace(/MIENTRAS:\s*\{[\s\S]*?\}/i, '')}
+
+NOTAS DE INVESTIGACIÓN:
+${notas || '(sin notas: usa solo conocimiento seguro y evita números dudosos)'}
+
+REGLAS DEL TEXTO DEL MEDIO:
+- Entre 22 y 32 palabras. Es solo lo que el narrador dice en voz alta.
+- Explica en palabras sencillas POR QUÉ pasa el peligro y qué ocurre si haces lo incorrecto. Una sola idea, con causa y efecto.
+- Háblale de tú, como un amigo. Frases cortas. Números escritos en letras.
+- No repitas la frase del inicio ni la regla final, y no digas "nunca ${MIENTRAS.nunca}": eso lo dice el sistema.
+- No exageres: si algo es raro, dilo como raro. No inventes números.
+- PROHIBIDO: saludos, títulos, notas de clips o tomas, emojis, hashtags, corchetes, "sabías que", "increíble", "suscríbete".
+
+REGLAS DEL PLAN DE TOMAS:
+- Entre 2 y 3 tomas largas, todas mostrando LA MISMA situación de peligro desde distintos ángulos. La primera toma también cubre la frase del inicio.
+- "desde": frase EXACTA de 3 a 6 palabras copiada de TU texto donde empieza esa toma. La primera toma lleva "desde": "".
+- "clip": nombre único en español con guiones, terminado en .mp4.
+- "buscar": búsqueda en INGLÉS que muestre EXACTAMENTE la escena del peligro, con acción: verbo + objeto + detalle (por ejemplo "oil pan catching fire on stove"). Si el productor dio búsquedas, úsalas. Nunca subscribe, thank you, intro, outro, youtube ni texto.
+- "etiquetas": siempre lista vacía [].
+
+Responde SOLO con este JSON:
+{"guion": "el texto del medio", "plan": [{"desde": "", "clip": "nombre.mp4", "buscar": "english query", "etiquetas": []}]}`;
+}
+
 // Modelos para escribir el guion; el ultimo es el mas liviano, como respaldo
 const MODELOS_GUION = ['gemini-3.6-flash', 'gemini-2.5-flash'];
 if (GROQ) MODELOS_GUION.push('groq:openai/gpt-oss-120b', 'groq:qwen/qwen3.6-27b', 'groq:openai/gpt-oss-20b');
 
 // Limite de palabras: si el guion se pasa, se le pide a Gemini que lo acorte
-const MAX_PALABRAS = RETO ? 48 : 70;
+const MAX_PALABRAS = RETO ? 48 : MIENTRAS ? 38 : 70;
 const contarPalabras = (g) => g.replace(/[#*_\[\]]/g, ' ').split(/\s+/).filter(Boolean).length;
 
 async function generarGuion(notas) {
-  const base = RETO ? promptReto(notas) : promptGuion(notas);
+  const base = RETO ? promptReto(notas) : MIENTRAS ? promptMientras(notas) : promptGuion(notas);
   let correccion = '';
   let respaldo = null; // ultimo guion valido aunque haya salido largo
   for (const modelo of MODELOS_GUION) {
@@ -277,7 +335,7 @@ async function generarGuion(notas) {
         const data = await res.json();
         const texto = quitarBackticks(esGroq ? (data?.choices?.[0]?.message?.content ?? '') : textoDe(data));
         const json = JSON.parse(texto);
-        if (!(typeof json.guion === 'string' && json.guion.trim() && Array.isArray(json.plan) && json.plan.length >= 2)) {
+        if (!(typeof json.guion === 'string' && json.guion.trim() && Array.isArray(json.plan) && json.plan.length >= (MIENTRAS ? 1 : 2))) {
           console.log('  respuesta incompleta, reintento...');
           continue;
         }
@@ -398,7 +456,7 @@ if (!resultado) {
   process.exit(1);
 }
 
-let guion = RETO ? limpiarGuion(resultado.guion) : forzarGancho(limpiarGuion(resultado.guion));
+let guion = RETO || MIENTRAS ? limpiarGuion(resultado.guion) : forzarGancho(limpiarGuion(resultado.guion));
 let plan = normalizarPlan(resultado.plan);
 
 // Modo RETO: se arma el guion completo (pregunta + opciones + cuenta + respuesta +
@@ -428,14 +486,40 @@ if (RETO) {
   ];
 }
 
+// Modo MIENTRAS: frase de inicio + consejo + regla, el cartel de arriba en la primera
+// toma y una ultima toma con la regla en la plantilla SI/NO.
+if (MIENTRAS) {
+  guion = `${MIENTRAS_INICIO} ${guion} ${MIENTRAS_REGLA}`;
+  if (plan.length) {
+    plan[0].desde = '';
+    plan[0].banner = 'Mientras ves esto';
+  }
+  const ultima = plan[plan.length - 1] ?? {clip: 'peligro.mp4', buscar: TEMA_CORTO.split(' ').slice(0, 4).join(' ')};
+  const cinco = (t) => t.split(/\s+/).slice(0, 5).join(' ').replace(/[.,;:!?¡¿"]+/g, ' ').replace(/\s+/g, ' ').trim();
+  plan.push({
+    desde: cinco(`Así que nunca ${MIENTRAS.nunca}`),
+    clip: ultima.clip,
+    buscar: ultima.buscar,
+    etiquetas: [],
+    plantilla: {
+      tipo: 'sino',
+      titulo: 'Recuerda esto',
+      tituloSi: 'HAZLO',
+      tituloNo: 'NUNCA',
+      si: [{texto: MIENTRAS.cartelHaz || mayuscula(MIENTRAS.haz), cuando: cinco(MIENTRAS.haz)}],
+      no: [{texto: MIENTRAS.cartelNunca || mayuscula(MIENTRAS.nunca), cuando: cinco(`nunca ${MIENTRAS.nunca}`)}],
+    },
+  });
+}
+
 const palabras = guion.split(/\s+/).filter(Boolean).length;
 const frases = guion.match(/[^.?!]+[.?!]+/g) ?? [guion];
 console.log(`PRIMERA: ${frases[0].trim()}`);
 console.log(`ULTIMA: ${frases[frases.length - 1].trim()}`);
-const LARGO = RETO ? 95 : 75;
-console.log(`PALABRAS: ${palabras}${palabras > LARGO ? ' (AVISO: largo)' : ''}${palabras < 45 ? ' (AVISO: corto)' : ''}`);
+const LARGO = RETO ? 95 : MIENTRAS ? 65 : 75;
+console.log(`PALABRAS: ${palabras}${palabras > LARGO ? ' (AVISO: largo)' : ''}${palabras < (MIENTRAS ? 30 : 45) ? ' (AVISO: corto)' : ''}`);
 const ultima = frases[frases.length - 1].trim();
-if (!RETO && ultima.split(/\s+/).length < 8) console.log('AVISO: la última frase es muy corta, revisa que el cierre no haya quedado a medias');
+if (!RETO && !MIENTRAS && ultima.split(/\s+/).length < 8) console.log('AVISO: la última frase es muy corta, revisa que el cierre no haya quedado a medias');
 
 await fs.writeFile('public/guion.txt', guion, 'utf8');
 await fs.writeFile('public/plan.json', JSON.stringify(plan, null, 2), 'utf8');
