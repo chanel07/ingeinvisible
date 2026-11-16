@@ -13,6 +13,10 @@ on:
         description: 'Tu voz grabada: nombre del archivo en video-agua/public/voces/ (vacío = voz de Gonzalo)'
         required: false
         type: string
+      evitar:
+        description: 'Clips que NO deben salir, en inglés separados por coma (ej: child, bedroom, car)'
+        required: false
+        type: string
 
 jobs:
   short:
@@ -129,6 +133,9 @@ jobs:
           PEXELS_KEY: ${{ secrets.PEXELS_KEY }}
           PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
           CLIPS_VERTICAL: 'si'
+          # Modo estricto: si no encuentra un clip que coincida, repite uno bueno en vez de meter otra cosa
+          CLIPS_ESTRICTO: 'si'
+          CLIPS_EVITAR: ${{ inputs.evitar }}
         run: rm -rf public/clips && node scripts/descargar-clips.mjs
 
       - name: Preparar clips
