@@ -129,6 +129,8 @@ jobs:
           PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
           CLIPS_EVITAR: ${{ inputs.evitar }}
           CLIPS_ESTRICTO: 'si'
+          # Gemini revisa cada clip antes de usarlo (si muestra lo que dice la voz)
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
         run: rm -rf public/clips && node scripts/descargar-clips.mjs
 
       - name: Preparar clips
