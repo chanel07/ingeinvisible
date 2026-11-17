@@ -64,7 +64,9 @@ if (VERTICAL) console.log('Modo vertical: primero clips verticales en alta resol
 const GEMINI = (process.env.GEMINI_KEY ?? '').trim();
 let REVISAR = !!GEMINI && (process.env.CLIPS_REVISAR ?? 'si').toLowerCase() !== 'no';
 const MAX_REVISIONES = Number(process.env.CLIPS_MAX_REVISIONES ?? 5) || 5;
-const MODELOS_VISION = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash'];
+// Primero los modelos livianos (tienen cupo aparte del que usa el guion); los nombres
+// "latest" siempre apuntan al modelo vigente, por si Google retira uno viejo.
+const MODELOS_VISION = ['gemini-flash-lite-latest', 'gemini-2.5-flash-lite', 'gemini-flash-latest', 'gemini-3.6-flash', 'gemini-2.5-flash'];
 const modelosVivos = [...MODELOS_VISION];
 const cuentaIA = {ok: 0, no: 0, sinRevisar: 0};
 console.log(REVISAR ? `Revisión con IA: encendida (hasta ${MAX_REVISIONES} candidatos por toma)` : 'Revisión con IA: apagada');
@@ -96,7 +98,8 @@ Responde ok=false si muestra otra cosa (por ejemplo: una uña cuando se habla de
 Responde SOLO con JSON: {"ok": true o false, "ve": "lo que se ve, máximo 8 palabras, en español"}`;
   while (modelosVivos.length) {
     const modelo = modelosVivos[0];
-    const config = {temperature: 0, maxOutputTokens: 200, responseMimeType: 'application/json'};
+    // Espacio de sobra: los modelos nuevos "piensan" antes de responder y gastan de este cupo
+    const config = {temperature: 0, maxOutputTokens: 2048, responseMimeType: 'application/json'};
     if (modelo.startsWith('gemini-2.5')) config.thinkingConfig = {thinkingBudget: 0};
     let res;
     try {
@@ -130,12 +133,15 @@ Responde SOLO con JSON: {"ok": true o false, "ve": "lo que se ve, máximo 8 pala
     }
     try {
       const data = await res.json();
-      const texto = (data?.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('').replace(/```json|```/g, '').trim();
+      const texto = (data?.candidates?.[0]?.content?.parts ?? []).filter((p) => !p.thought).map((p) => p.text ?? '').join('').replace(/```json|```/g, '').trim();
       const j = JSON.parse(texto.slice(texto.indexOf('{'), texto.lastIndexOf('}') + 1));
       await pausa(4500); // para no pasar el limite de solicitudes por minuto
       return {ok: j.ok === true || /^(true|si|sí|yes)$/i.test(String(j.ok)), ve: String(j.ve ?? '').slice(0, 80)};
     } catch {
-      return null;
+      // Respuesta vacia o rara: ese modelo no sirve para esto, se prueba el siguiente
+      console.log(`    ${modelo} no dio una respuesta clara, pruebo otro`);
+      modelosVivos.shift();
+      continue;
     }
   }
   console.log('AVISO: Gemini sin cupo para revisar; el resto de clips se escoge sin revisión');
@@ -359,7 +365,9 @@ for (const toma of tomas) {
     );
   } else {
     intentos.push(() => buscarFotoPexels(buscar, true));
-    if (!ESTRICTO) {
+    // Con la revision con IA encendida tambien se prueban clips cuya descripcion no
+    // coincide: la IA los mira y solo pasa el que de verdad muestra lo que dice la voz.
+    if (!ESTRICTO || REVISAR) {
       intentos.push(
         () => buscarVideoPexels(buscar, false),
         () => buscarVideoPixabay(buscar, false),
@@ -392,6 +400,11 @@ for (const toma of tomas) {
         }
         if (!cand) break;
         if (!revisarEsta || !REVISAR) {
+          // Sin revision, en modo estricto nunca entra un clip que no coincide
+          if (ESTRICTO && !cand.estricto) {
+            rechazados.add(cand.id);
+            continue;
+          }
           elegido = cand;
           break;
         }
@@ -407,12 +420,21 @@ for (const toma of tomas) {
         const r = await revisarConIA(cand, frase, buscar);
         revisados++;
         if (r === null) {
+          // No se pudo revisar: en modo estricto solo entra si su descripcion coincide
+          if (ESTRICTO && !cand.estricto) {
+            rechazados.add(cand.id);
+            continue;
+          }
           console.log(`  candidato ${revisados} sin revisar (no se pudo)`);
           cuentaIA.sinRevisar++;
           elegido = cand;
           break;
         }
         if (r.ok) {
+          if (!cand.estricto) {
+            cand.estricto = true;
+            cand.info = cand.info.replace(', SIN COINCIDIR', ', aprobado por la IA');
+          }
           console.log(`  candidato ${revisados} ✓ (${r.ve})`);
           cuentaIA.ok++;
           elegido = cand;
