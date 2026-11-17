@@ -136,6 +136,8 @@ jobs:
           # Modo estricto: si no encuentra un clip que coincida, repite uno bueno en vez de meter otra cosa
           CLIPS_ESTRICTO: 'si'
           CLIPS_EVITAR: ${{ inputs.evitar }}
+          # Gemini revisa cada clip antes de usarlo (si muestra lo que dice la voz)
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
         run: rm -rf public/clips && node scripts/descargar-clips.mjs
 
       - name: Preparar clips
