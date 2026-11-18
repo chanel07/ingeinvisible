@@ -238,6 +238,16 @@ jobs:
           echo "PESO: ${MB} MB"
           ffprobe -v error -show_entries format=duration,bit_rate -of default=noprint_wrappers=1 out/short-final.mp4
 
+      - name: Guardar Short como archivo descargable
+        uses: actions/upload-artifact@v4
+        with:
+          name: short-${{ github.run_number }}
+          path: |
+            video-agua/out/short-final.mp4
+            video-agua/out/metadatos.txt
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Subir Short al repositorio
         env:
           TEMA: ${{ steps.tema.outputs.TEMA }}
@@ -247,6 +257,9 @@ jobs:
           git add -f video-agua/out/short-final.mp4
           git add temas-shorts.txt
           git commit -m "Short: ${TEMA:0:80}" || true
+          # Quita los archivos de trabajo (guion, plan, clips...) para que no estorben al traer tus cambios
+          git reset --hard -q HEAD
+          git clean -fdq
           # Si mientras se hacía el video tú subiste cambios al repo, primero los trae y luego sube
           for i in 1 2 3; do
             if git pull --rebase -X theirs && git push; then
