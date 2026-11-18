@@ -10,7 +10,7 @@ on:
         required: false
         type: string
       voz:
-        description: 'Voz: vacío = Gonzalo, gemini = voz natural de Gemini, o el nombre de tu grabación en video-agua/public/voces/'
+        description: 'Voz: vacío = Gemini (natural), gonzalo = la voz de antes, o el nombre de tu grabación en video-agua/public/voces/'
         required: false
         type: string
       evitar:
@@ -21,7 +21,7 @@ on:
 jobs:
   short:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 55
     permissions:
       contents: write
 
@@ -96,7 +96,11 @@ jobs:
           cat public/guion.txt
           echo "------------------------------------"
           VOZ_LISTA=no
-          if [ "$(printf '%s' "$VOZ_PROPIA" | tr '[:upper:]' '[:lower:]')" = "gemini" ]; then
+          # Voz por defecto: Gemini. Con "gonzalo" se usa la voz de antes.
+          VOZ_ELEGIDA="$(printf '%s' "$VOZ_PROPIA" | tr '[:upper:]' '[:lower:]' | tr -d ' ')"
+          if [ -z "$VOZ_ELEGIDA" ]; then VOZ_ELEGIDA=gemini; fi
+          if [ "$VOZ_ELEGIDA" = "gonzalo" ]; then VOZ_PROPIA=""; fi
+          if [ "$VOZ_ELEGIDA" = "gemini" ]; then
             echo "===== Usando la voz natural de Gemini ====="
             if node scripts/voz-gemini.mjs; then
               pip install --quiet faster-whisper
@@ -210,6 +214,8 @@ jobs:
           # Personaje Invi (dibujado en src/Invi.tsx). Para quitarlo, cambia si por no
           export REMOTION_PERSONAJE="si"
           echo "Personaje Invi: $REMOTION_PERSONAJE"
+          # Lo que dice el globo de Invi al final: la promesa del canal
+          export REMOTION_CIERRE_INVI="¡Sígueme! Cada día, un peligro de tu casa"
           # Musica de fondo: una canción al azar de public/musica/ (si no hay, sale sin música)
           MUSICA=""
           if ls public/musica/*.mp3 >/dev/null 2>&1; then
