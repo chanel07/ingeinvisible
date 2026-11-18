@@ -242,13 +242,19 @@ jobs:
         env:
           TEMA: ${{ steps.tema.outputs.TEMA }}
         run: |
-          cd video-agua
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add -f out/short-final.mp4
-          git commit -m "Short: ${TEMA:0:80}"
-          git push
-          cd ..
+          git add -f video-agua/out/short-final.mp4
           git add temas-shorts.txt
-          git commit -m "Marcar tema usado" || true
-          git push || true
+          git commit -m "Short: ${TEMA:0:80}" || true
+          # Si mientras se hacía el video tú subiste cambios al repo, primero los trae y luego sube
+          for i in 1 2 3; do
+            if git pull --rebase -X theirs && git push; then
+              echo "Short subido"
+              exit 0
+            fi
+            echo "No se pudo subir (intento $i/3), reintento en 10s..."
+            git rebase --abort 2>/dev/null || true
+            sleep 10
+          done
+          exit 1
