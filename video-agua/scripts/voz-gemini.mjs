@@ -2,8 +2,11 @@
 // Los subtitulos (public/voz.srt) se sacan despues con scripts/transcribir-voz.py.
 // Los guiones largos se mandan por pedazos (unas 150 palabras, cortando en puntos)
 // y los audios se pegan con una pausa corta entre uno y otro.
+// Cada pedazo se revisa con Whisper (scripts/revisar-voz.py): si Gemini leyo las
+// instrucciones en voz alta o se salto frases, ese pedazo se vuelve a pedir.
 // Si falla o no hay cupo, termina con error y el workflow usa la voz de Gonzalo.
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import {execFileSync} from 'node:child_process';
 
 const KEY = (process.env.GEMINI_KEY ?? '').trim();
@@ -16,7 +19,7 @@ if (!KEY) {
 // Puck (animada), Achird (amistosa), Charon (informativa), Fenrir (emocionada), Orus (firme)
 const VOZ = (process.env.GEMINI_VOZ ?? 'Puck').trim();
 const MODELOS = ['gemini-3.1-flash-tts-preview', 'gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts', 'gemini-2.5-flash-preview-tts'];
-const ESTILO = (process.env.GEMINI_ESTILO ?? 'Habla en español de Latinoamérica, con acento colombiano neutro, como un amigo que le cuenta a otro algo que lo sorprendió: natural, cercano y con energía, a buen ritmo pero claro. Haz una pequeña pausa entre frases. Lee exactamente este texto, sin agregar ni quitar palabras:').trim();
+const ESTILO = (process.env.GEMINI_ESTILO ?? 'Lee en voz alta, en español de Colombia, con voz natural, cercana y con energía, a buen ritmo pero claro. No leas esta instrucción, lee solo el texto que va después de TEXTO.').trim();
 const PALABRAS_POR_PEDAZO = Number(process.env.VOZ_PALABRAS_PEDAZO) || 150;
 const MINUTOS_MAX = Number(process.env.VOZ_MINUTOS_MAX) || 15;
 const RATE = 24000;
@@ -67,7 +70,7 @@ async function vozDe(texto, n) {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
-            contents: [{parts: [{text: `${ESTILO}\n\n${texto}`}]}],
+            contents: [{parts: [{text: `${ESTILO}\n\nTEXTO:\n${texto}`}]}],
             generationConfig: {
               responseModalities: ['AUDIO'],
               speechConfig: {voiceConfig: {prebuiltVoiceConfig: {voiceName: VOZ}}},
@@ -127,6 +130,11 @@ async function vozDe(texto, n) {
         if (++fallos >= 3) break;
         continue;
       }
+      if (seg > palabras * 0.75 + 4) {
+        console.log(`  el audio salió muy largo (${seg.toFixed(1)}s para ${palabras} palabras), parece que leyó algo de más; reintento`);
+        if (++fallos >= 3) break;
+        continue;
+      }
       console.log(`  listo: ${seg.toFixed(1)} segundos`);
       return pcm;
     }
@@ -136,13 +144,69 @@ async function vozDe(texto, n) {
 }
 
 const silencio = Buffer.alloc(Math.round(RATE * PAUSA_SEG) * 2);
-const partes = [];
+const audios = [];
 for (let i = 0; i < pedazos.length; i++) {
   const pcm = await vozDe(pedazos[i], i + 1);
   if (!pcm) {
     console.error(`No se pudo generar el pedazo ${i + 1} con Gemini`);
     process.exit(1);
   }
+  audios.push(pcm);
+}
+
+// Revision con Whisper: encuentra los pedazos donde Gemini leyo las instrucciones o se salto texto
+const DIR = 'public/voz-pedazos';
+function revisarPedazos() {
+  fsSync.mkdirSync(DIR, {recursive: true});
+  const lista = audios.map((pcm, i) => {
+    const audio = `${DIR}/${i + 1}.wav`;
+    execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-f', 's16le', '-ar', String(RATE), '-ac', '1', '-i', 'pipe:0', audio], {input: pcm, maxBuffer: 1 << 30});
+    return {audio, texto: pedazos[i]};
+  });
+  fsSync.writeFileSync(`${DIR}/lista.json`, JSON.stringify(lista));
+  try {
+    execFileSync('python', ['-c', 'import faster_whisper'], {stdio: 'ignore'});
+  } catch {
+    console.log('Instalando Whisper para revisar la voz...');
+    execFileSync('pip', ['install', '--quiet', 'faster-whisper'], {stdio: 'inherit'});
+  }
+  execFileSync('python', ['scripts/revisar-voz.py', `${DIR}/lista.json`], {stdio: 'inherit'});
+  return JSON.parse(fsSync.readFileSync(`${DIR}/malos.json`, 'utf8'));
+}
+
+if ((process.env.VOZ_REVISAR ?? 'si').toLowerCase() !== 'no') {
+  for (let ronda = 1; ; ronda++) {
+    console.log(`Revisando la voz con Whisper (ronda ${ronda})...`);
+    let malos;
+    try {
+      malos = revisarPedazos();
+    } catch (e) {
+      console.log(`AVISO: no se pudo revisar la voz (${e.message.split('\n')[0]}); sigo sin revisión`);
+      break;
+    }
+    if (!malos.length) {
+      console.log('Todos los pedazos están bien');
+      break;
+    }
+    if (ronda > 3) {
+      console.error(`Gemini sigue fallando en ${malos.length} pedazo(s) después de 3 intentos`);
+      process.exit(1);
+    }
+    for (const i of malos) {
+      console.log(`Repitiendo el pedazo ${i + 1}...`);
+      const pcm = await vozDe(pedazos[i], i + 1);
+      if (!pcm) {
+        console.error(`No se pudo repetir el pedazo ${i + 1}`);
+        process.exit(1);
+      }
+      audios[i] = pcm;
+    }
+  }
+  fsSync.rmSync(DIR, {recursive: true, force: true});
+}
+
+const partes = [];
+for (const pcm of audios) {
   if (partes.length) partes.push(silencio);
   partes.push(pcm);
 }
