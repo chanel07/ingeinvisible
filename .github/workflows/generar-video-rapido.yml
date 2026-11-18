@@ -18,6 +18,10 @@ on:
           - '4'
           - '8'
           - '10'
+      voz:
+        description: 'Voz: vacío = Gemini (natural), gonzalo = la voz de antes, o el nombre de tu grabación en video-agua/public/voces/'
+        required: false
+        type: string
       evitar:
         description: 'Clips que NO deben salir, en inglés separados por coma (ej: car, engine, fan)'
         required: false
@@ -91,6 +95,8 @@ jobs:
         env:
           AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
           AZURE_SPEECH_REGION: eastus
+          VOZ_PROPIA: ${{ inputs.voz }}
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
         run: |
           PAL='clip|toma|escena|visual|imagen|b-roll|seccion|sección|SECCIÓN|section|parte|capitulo|capítulo|CAPÍTULO|titulo|título|TÍTULO|nota'
           sed -i -E "/^[[:space:]]*[(\[]?[0-9]*[.)]?[[:space:]]*($PAL)[[:space:]]*[0-9]*[[:space:]]*:/Id" public/guion.txt
@@ -99,12 +105,47 @@ jobs:
           echo "----- GUION QUE SE VA A NARRAR -----"
           cat public/guion.txt
           echo "------------------------------------"
-          if edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt; then
-            echo "Voz generada con edge-tts"
+          VOZ_LISTA=no
+          # Voz por defecto: Gemini (por pedazos, porque el guion es largo). Con "gonzalo" se usa la voz de antes.
+          VOZ_ELEGIDA="$(printf '%s' "$VOZ_PROPIA" | tr '[:upper:]' '[:lower:]' | tr -d ' ')"
+          if [ -z "$VOZ_ELEGIDA" ]; then VOZ_ELEGIDA=gemini; fi
+          if [ "$VOZ_ELEGIDA" = "gonzalo" ]; then VOZ_PROPIA=""; fi
+          if [ "$VOZ_ELEGIDA" = "gemini" ]; then
+            echo "===== Usando la voz natural de Gemini ====="
+            if node scripts/voz-gemini.mjs; then
+              pip install --quiet faster-whisper
+              if python scripts/transcribir-voz.py; then
+                VOZ_LISTA=si
+              else
+                echo "AVISO: no se pudieron sacar los subtítulos de la voz de Gemini, uso la de Gonzalo"
+              fi
+            else
+              echo "AVISO: Gemini no pudo hacer la voz, uso la de Gonzalo"
+            fi
+            VOZ_PROPIA=""
+          fi
+          if [ "$VOZ_LISTA" = "si" ]; then
+            echo "Voz de Gemini lista"
+          elif [ -n "$VOZ_PROPIA" ] && [ -f "public/voces/$VOZ_PROPIA" ]; then
+            echo "===== Usando TU voz: $VOZ_PROPIA ====="
+            ffmpeg -nostdin -y -loglevel error -i "public/voces/$VOZ_PROPIA" \
+              -af "highpass=f=80,afftdn=nf=-25,silenceremove=start_periods=1:start_silence=0.1:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_silence=0.3:start_threshold=-45dB,areverse" \
+              public/voz-limpia.wav
+            ffmpeg -nostdin -y -loglevel error -i public/voz-limpia.wav -af "loudnorm=I=-16:TP=-1.5:LRA=11" -ar 44100 -ac 1 -b:a 192k public/voz.mp3
+            rm -f public/voz-limpia.wav
+            pip install --quiet faster-whisper
+            python scripts/transcribir-voz.py
           else
-            echo "===== edge-tts falló, uso Azure con la misma voz de Gonzalo ====="
-            node scripts/voz-azure.mjs
-            node scripts/srt-desde-audio.mjs
+            if [ -n "$VOZ_PROPIA" ]; then
+              echo "AVISO: no encontré public/voces/$VOZ_PROPIA, uso la voz de Gonzalo"
+            fi
+            if edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt; then
+              echo "Voz generada con edge-tts"
+            else
+              echo "===== edge-tts falló, uso Azure con la misma voz de Gonzalo ====="
+              node scripts/voz-azure.mjs
+              node scripts/srt-desde-audio.mjs
+            fi
           fi
 
       - name: Título y descripción para YouTube
