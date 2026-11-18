@@ -2,9 +2,12 @@
 # Usa Whisper para saber en que segundo dices cada palabra, y pone el texto exacto
 # del guion (public/guion.txt), asi los subtitulos no salen con errores de dictado.
 import re
+import subprocess
 import sys
 import unicodedata
 from difflib import SequenceMatcher
+
+import numpy as np
 
 AUDIO = 'public/voz.mp3'
 GUION = 'public/guion.txt'
@@ -90,6 +93,16 @@ def escribir_srt(grupos):
         f.write('\n'.join(lineas))
 
 
+def leer_audio(ruta):
+    """Convierte el audio con ffmpeg a 16 kHz mono. Asi Whisper no depende de la
+    libreria de audio de Python, que en versiones nuevas rompe a faster-whisper."""
+    crudo = subprocess.run(
+        ['ffmpeg', '-nostdin', '-loglevel', 'error', '-i', ruta, '-f', 'f32le', '-ac', '1', '-ar', '16000', '-'],
+        check=True, capture_output=True,
+    ).stdout
+    return np.frombuffer(crudo, dtype=np.float32).copy()
+
+
 def main():
     try:
         guion = open(GUION, encoding='utf-8').read().strip()
@@ -98,7 +111,7 @@ def main():
     from faster_whisper import WhisperModel
     print('Transcribiendo tu voz con Whisper...')
     modelo = WhisperModel('small', device='cpu', compute_type='int8')
-    segmentos, _ = modelo.transcribe(AUDIO, language='es', word_timestamps=True, vad_filter=True, initial_prompt=guion[:800] or None)
+    segmentos, _ = modelo.transcribe(leer_audio(AUDIO), language='es', word_timestamps=True, vad_filter=True, initial_prompt=guion[:800] or None)
     voz = [(w.word.strip(), w.start, w.end) for s in segmentos for w in (s.words or []) if w.word.strip()]
     if not voz:
         print('ERROR: Whisper no reconoció palabras en tu grabación')
