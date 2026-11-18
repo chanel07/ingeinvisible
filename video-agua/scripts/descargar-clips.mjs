@@ -71,6 +71,10 @@ const modelosVivos = [...MODELOS_VISION];
 const cuentaIA = {ok: 0, no: 0, sinRevisar: 0};
 console.log(REVISAR ? `Revisión con IA: encendida (hasta ${MAX_REVISIONES} candidatos por toma)` : 'Revisión con IA: apagada');
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
+// Tiempo maximo para revisar todo el video: si se pasa, el resto se escoge sin revision
+// (asi el workflow nunca se queda colgado esperando a Gemini)
+const LIMITE_REVISION = Date.now() + (Number(process.env.CLIPS_MINUTOS_REVISION ?? 8) || 8) * 60000;
+const esperas = {}; // cuantas veces se espero por limite de velocidad en cada modelo
 
 const fotoBase64 = async (url) => {
   try {
@@ -97,6 +101,11 @@ Responde ok=true solo si en las fotos se ve claramente el objeto o la acción pr
 Responde ok=false si muestra otra cosa (por ejemplo: una uña cuando se habla de un clavo, la puerta de una habitación cuando se habla de una nevera, el motor de un carro cuando se habla de un aire acondicionado), si es contenido sensual o con poca ropa, si parece hecho con IA o animado, o si tiene textos o logos grandes.
 Responde SOLO con JSON: {"ok": true o false, "ve": "lo que se ve, máximo 8 palabras, en español"}`;
   while (modelosVivos.length) {
+    if (Date.now() > LIMITE_REVISION) {
+      console.log('AVISO: se acabó el tiempo para revisar; el resto de clips se escoge sin revisión');
+      REVISAR = false;
+      return null;
+    }
     const modelo = modelosVivos[0];
     // Espacio de sobra: los modelos nuevos "piensan" antes de responder y gastan de este cupo
     const config = {temperature: 0, maxOutputTokens: 2048, responseMimeType: 'application/json'};
@@ -119,11 +128,14 @@ Responde SOLO con JSON: {"ok": true o false, "ve": "lo que se ve, máximo 8 pala
     }
     if (res.status === 429) {
       const msg = (await res.text()).replace(/\s+/g, ' ');
-      if (/exceeded your current quota|per day/i.test(msg)) {
-        console.log(`    ${modelo} sin cupo, pruebo otro`);
+      esperas[modelo] = (esperas[modelo] ?? 0) + 1;
+      // Sin cupo del dia, o ya se espero dos veces: se pasa al siguiente modelo
+      if (/exceeded your current quota|per day|PerDay/i.test(msg) || esperas[modelo] > 2) {
+        console.log(`    ${modelo} sin cupo (${msg.slice(0, 120)}), pruebo otro`);
         modelosVivos.shift();
         continue;
       }
+      console.log(`    ${modelo} pide esperar (límite por minuto), espero 20s...`);
       await pausa(20000);
       continue;
     }
