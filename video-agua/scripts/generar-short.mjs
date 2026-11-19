@@ -206,7 +206,7 @@ REGLAS DEL PLAN DE TOMAS:
 - Entre 6 y 7 tomas, en el orden del guion, una por cada frase del guion. Cada toma dura de 3 a 4 segundos: cambia de clip justo cuando cambia la frase, y usa una búsqueda distinta en cada toma.
 - "desde": frase EXACTA de 3 a 6 palabras copiada del guion donde empieza esa toma. La primera toma lleva "desde": "".
 - "clip": nombre único en español con guiones, terminado en .mp4 (por ejemplo cable-caliente.mp4).
-- "buscar": búsqueda en INGLÉS para video de stock que muestre EXACTAMENTE la acción que dice la voz en esa toma, con quién la hace y sobre qué objeto: verbo + objeto + detalle. Si la voz dice "abres la puerta del microondas", buscar "person opening microwave door"; si dice "conectas el cargador", buscar "hand plugging charger into outlet". Nunca solo el objeto quieto ni algo abstracto como "danger". Si el productor dio búsquedas, úsalas. NUNCA uses subscribe, thank you, intro, outro, youtube ni texto.
+- "buscar": búsqueda en INGLÉS para video de stock que muestre EXACTAMENTE la acción que dice la voz en esa toma, con quién la hace y sobre qué objeto: verbo + objeto + detalle. Si la voz dice "abres la puerta del microondas", buscar "person opening microwave door"; si dice "conectas el cargador", buscar "hand plugging charger into outlet". Nunca solo el objeto quieto ni algo abstracto como "danger". Si el productor dio búsquedas, úsalas; si una empieza con DIBUJAR: o PROPIA:, cópiala EXACTA, con ese prefijo, en la toma que le corresponde. NUNCA uses subscribe, thank you, intro, outro, youtube ni texto.
 - "etiquetas": lista con 0 o 1 etiqueta por toma: {"texto": "máximo 3 palabras", "cuando": "frase exacta del guion"}.
 - "plantilla": SOLO si el productor lo pide en el tema. Copia el campo "plantilla" EXACTAMENTE como lo escribió el productor, en la toma que él indicó, y esa toma va sin etiquetas. Si el productor no pide plantilla, no pongas este campo.
 
@@ -242,7 +242,7 @@ REGLAS DEL PLAN DE TOMAS (solo para la explicación):
 - Entre 3 y 4 tomas, una por cada frase de la explicación, en orden.
 - "desde": frase EXACTA de 3 a 6 palabras copiada de la explicación donde empieza esa toma. La primera toma lleva "desde": "".
 - "clip": nombre único en español con guiones, terminado en .mp4.
-- "buscar": búsqueda en INGLÉS para video de stock que muestre EXACTAMENTE la acción u objeto que dice la voz: verbo + objeto + detalle (por ejemplo "person opening refrigerator door"). Si el productor dio búsquedas, úsalas. Nunca subscribe, thank you, intro, outro, youtube ni texto.
+- "buscar": búsqueda en INGLÉS para video de stock que muestre EXACTAMENTE la acción u objeto que dice la voz: verbo + objeto + detalle (por ejemplo "person opening refrigerator door"). Si el productor dio búsquedas, úsalas; si una empieza con DIBUJAR: o PROPIA:, cópiala EXACTA, con ese prefijo, en la toma que le corresponde. Nunca subscribe, thank you, intro, outro, youtube ni texto.
 - "etiquetas": lista con 0 o 1 etiqueta por toma: {"texto": "máximo 3 palabras", "cuando": "frase exacta de la explicación"}.
 
 Responde SOLO con este JSON:
@@ -275,7 +275,7 @@ REGLAS DEL PLAN DE TOMAS:
 - Entre 2 y 3 tomas largas, todas mostrando LA MISMA situación de peligro desde distintos ángulos. La primera toma también cubre la frase del inicio.
 - "desde": frase EXACTA de 3 a 6 palabras copiada de TU texto donde empieza esa toma. La primera toma lleva "desde": "".
 - "clip": nombre único en español con guiones, terminado en .mp4.
-- "buscar": búsqueda en INGLÉS que muestre EXACTAMENTE la escena del peligro, con acción: verbo + objeto + detalle (por ejemplo "oil pan catching fire on stove"). Si el productor dio búsquedas, úsalas. Nunca subscribe, thank you, intro, outro, youtube ni texto.
+- "buscar": búsqueda en INGLÉS que muestre EXACTAMENTE la escena del peligro, con acción: verbo + objeto + detalle (por ejemplo "oil pan catching fire on stove"). Si el productor dio búsquedas, úsalas; si una empieza con DIBUJAR: o PROPIA:, cópiala EXACTA, con ese prefijo, en la toma que le corresponde. Nunca subscribe, thank you, intro, outro, youtube ni texto.
 - "etiquetas": siempre lista vacía [].
 
 Responde SOLO con este JSON:
@@ -405,8 +405,11 @@ function normalizarPlan(plan) {
       usados.add(clip);
 
       let buscar = String(t.buscar ?? '').trim();
-      if (!buscar || PROHIBIDAS_BUSQUEDA.test(buscar)) buscar = ultimaBusqueda || TEMA_CORTO.split(' ').slice(0, 4).join(' ');
-      else ultimaBusqueda = buscar;
+      let relleno = false;
+      if (!buscar || PROHIBIDAS_BUSQUEDA.test(buscar)) {
+        buscar = ultimaBusqueda || TEMA_CORTO.split(' ').slice(0, 4).join(' ');
+        relleno = true;
+      } else ultimaBusqueda = buscar;
 
       let etiquetas = t.etiquetas;
       if (typeof etiquetas === 'string') etiquetas = [{texto: etiquetas}];
@@ -424,7 +427,7 @@ function normalizarPlan(plan) {
         ((p.tipo === 'mito' && p.mito && p.verdad) || (p.tipo === 'lista' && Array.isArray(p.items) && p.items.length) || (p.tipo === 'sino' && (Array.isArray(p.si) || Array.isArray(p.no))) || (p.tipo === 'reto' && p.pregunta && Array.isArray(p.opciones) && p.opciones.length));
       if (p && !plantillaOk) console.log(`  toma ${i + 1}: la plantilla vino incompleta y no se usa`);
 
-      return {desde: i === 0 ? '' : String(t.desde ?? ''), clip: `${clip}.mp4`, buscar, etiquetas: plantillaOk ? [] : etiquetas, ...(plantillaOk ? {plantilla: p} : {})};
+      return {desde: i === 0 ? '' : String(t.desde ?? ''), clip: `${clip}.mp4`, buscar, ...(relleno ? {relleno: true} : {}), etiquetas: plantillaOk ? [] : etiquetas, ...(plantillaOk ? {plantilla: p} : {})};
     });
 }
 
@@ -520,6 +523,38 @@ const LARGO = RETO ? 95 : MIENTRAS ? 65 : 75;
 console.log(`PALABRAS: ${palabras}${palabras > LARGO ? ' (AVISO: largo)' : ''}${palabras < (MIENTRAS ? 30 : 45) ? ' (AVISO: corto)' : ''}`);
 const ultima = frases[frases.length - 1].trim();
 if (!RETO && !MIENTRAS && ultima.split(/\s+/).length < 8) console.log('AVISO: la última frase es muy corta, revisa que el cierre no haya quedado a medias');
+
+// Busquedas especiales del productor (DIBUJAR: y PROPIA:): si la IA no las puso, se ponen aqui.
+// Primero van a las tomas donde la IA dejo la busqueda vacia; si no, a la toma mas cercana
+// segun el orden en que estan escritas en el tema.
+{
+  const lista = (TEMA.match(/B[uú]squedas de clips:\s*([\s\S]*)$/i)?.[1] ?? '')
+    .split(',')
+    .map((b) => b.trim().replace(/[.;]+$/, ''))
+    .filter(Boolean);
+  const especiales = lista.map((b, k) => ({b, k})).filter((x) => /^(DIBUJAR|PROPIA):/i.test(x.b));
+  const sinPrefijo = (b) => b.replace(/^(DIBUJAR|PROPIA):\s*/i, '').toLowerCase();
+  const faltan = especiales.filter((x) => !plan.some((t) => t.buscar.toLowerCase() === x.b.toLowerCase() || t.buscar.toLowerCase() === sinPrefijo(x.b)));
+  // Si la IA copio la descripcion sin el prefijo, se le devuelve el prefijo
+  for (const x of especiales) {
+    const t = plan.find((t) => !/^(DIBUJAR|PROPIA):/i.test(t.buscar) && t.buscar.toLowerCase() === sinPrefijo(x.b));
+    if (t) t.buscar = x.b;
+  }
+  const libres = () => plan.map((t, i) => ({t, i})).filter(({t}) => !t.plantilla && !/^(DIBUJAR|PROPIA):/i.test(t.buscar));
+  for (const x of faltan) {
+    let opciones = libres();
+    if (!opciones.length) break;
+    const vacias = opciones.filter(({t}) => t.relleno);
+    if (vacias.length) opciones = vacias;
+    const ideal = lista.length > 1 ? (x.k / (lista.length - 1)) * (plan.length - 1) : 0;
+    opciones.sort((a, b) => Math.abs(a.i - ideal) - Math.abs(b.i - ideal));
+    const elegida = opciones[0].t;
+    console.log(`  la IA no usó "${x.b.slice(0, 60)}": lo pongo en ${elegida.clip}`);
+    elegida.buscar = x.b;
+    elegida.relleno = false;
+  }
+  for (const t of plan) delete t.relleno;
+}
 
 await fs.writeFile('public/guion.txt', guion, 'utf8');
 await fs.writeFile('public/plan.json', JSON.stringify(plan, null, 2), 'utf8');
