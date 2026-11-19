@@ -304,6 +304,135 @@ const fotoAVideo = (jpg, mp4) => {
   ]);
 };
 
+// ---------- Dibujo con IA (cuando no hay clip que sirva) ----------
+// Si ningun clip muestra lo que dice la voz, la IA dibuja la imagen exacta y se
+// convierte en video con un zoom lento. Primero Cloudflare (CF_ACCOUNT_ID + CF_API_TOKEN),
+// si falla Gemini. Tambien se puede pedir a proposito con "DIBUJAR: descripcion" en
+// las busquedas. Se apaga con CLIPS_DIBUJAR=no.
+const CF_CUENTA = (process.env.CF_ACCOUNT_ID ?? '').trim();
+const CF_TOKEN = (process.env.CF_API_TOKEN ?? '').trim();
+const DIBUJAR = (process.env.CLIPS_DIBUJAR ?? 'si').toLowerCase() !== 'no' && (!!(CF_CUENTA && CF_TOKEN) || !!GEMINI);
+const MAX_DIBUJOS = Number(process.env.CLIPS_MAX_DIBUJOS ?? 6) || 6;
+const MODELOS_CF = ['@cf/black-forest-labs/flux-1-schnell', '@cf/bytedance/stable-diffusion-xl-lightning'];
+const MODELOS_DIBUJO_GEMINI = ['gemini-2.5-flash-image', 'gemini-2.0-flash-preview-image-generation'];
+const ESTILO_DIBUJO = 'Photorealistic photo, natural light, modest Latin American home in Colombia, close-up, sharp focus, realistic colors. No text, no letters, no logos, no watermark, no brand names.';
+const cuentaDibujos = {cf: 0, gemini: 0, fallos: 0};
+let cfVivo = !!(CF_CUENTA && CF_TOKEN);
+let geminiDibujaVivo = !!GEMINI;
+console.log(DIBUJAR ? `Dibujo con IA: encendido (${cfVivo ? 'Cloudflare' : ''}${cfVivo && geminiDibujaVivo ? ' + ' : ''}${geminiDibujaVivo ? 'Gemini' : ''}, hasta ${MAX_DIBUJOS} por video)` : 'Dibujo con IA: apagado');
+
+// Corta la espera si el servicio no responde (sin dejar el programa esperando al final)
+const conTiempo = (ms) => AbortSignal.timeout(ms);
+
+const dibujarCloudflare = async (prompt) => {
+  for (const modelo of MODELOS_CF) {
+    try {
+      const cuerpo = modelo.includes('flux') ? {prompt, steps: 6} : {prompt, width: 1024, height: 1024};
+      const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CF_CUENTA}/ai/run/${modelo}`, {
+        method: 'POST',
+        headers: {Authorization: `Bearer ${CF_TOKEN}`, 'Content-Type': 'application/json'},
+        body: JSON.stringify(cuerpo),
+        signal: conTiempo(60000),
+      });
+      if (res.status === 401 || res.status === 403) {
+        console.log(`    Cloudflare rechazó la clave (${res.status}): revisa CF_ACCOUNT_ID y CF_API_TOKEN`);
+        cfVivo = false;
+        return null;
+      }
+      if (!res.ok) {
+        console.log(`    Cloudflare ${modelo.split('/').pop()} error ${res.status}: ${(await res.text()).replace(/\s+/g, ' ').slice(0, 140)}`);
+        if (res.status === 429) {
+          cfVivo = false;
+          return null;
+        }
+        continue;
+      }
+      const tipo = res.headers.get('content-type') ?? '';
+      if (tipo.startsWith('image/')) return Buffer.from(await res.arrayBuffer());
+      const data = await res.json();
+      const b64 = data?.result?.image;
+      if (b64) return Buffer.from(b64, 'base64');
+      console.log(`    Cloudflare ${modelo.split('/').pop()} no devolvió imagen`);
+    } catch (e) {
+      console.log(`    Cloudflare falló: ${e.message}`);
+    }
+  }
+  return null;
+};
+
+const dibujarGemini = async (prompt) => {
+  for (const modelo of MODELOS_DIBUJO_GEMINI) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${GEMINI}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({contents: [{parts: [{text: prompt}]}], generationConfig: {responseModalities: ['TEXT', 'IMAGE']}}),
+        signal: conTiempo(90000),
+      });
+      if (!res.ok) {
+        console.log(`    Gemini ${modelo} no puede dibujar (${res.status})`);
+        continue;
+      }
+      const data = await res.json();
+      const parte = (data?.candidates?.[0]?.content?.parts ?? []).find((p) => p.inlineData?.data || p.inline_data?.data);
+      const img = parte?.inlineData ?? parte?.inline_data;
+      if (img?.data) return Buffer.from(img.data, 'base64');
+    } catch (e) {
+      console.log(`    Gemini falló dibujando: ${e.message}`);
+    }
+  }
+  geminiDibujaVivo = false;
+  return null;
+};
+
+// Imagen fija -> video de 12 s con zoom lento. En vertical la imagen va completa en el
+// centro y detras la misma imagen ampliada y borrosa, para no cortarle los lados.
+const imagenIAaVideo = (img, mp4) => {
+  const W = VERTICAL ? 1080 : 1920;
+  const H = VERTICAL ? 1920 : 1080;
+  const zoom = `zoompan=z='min(1+0.0009*on,1.16)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=360:s=${W}x${H}:fps=30`;
+  const filtro = VERTICAL
+    ? `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=30:3,eq=brightness=-0.08[fondo];[0:v]scale=${W}:-2[frente];[fondo][frente]overlay=(W-w)/2:(H-h)/2,${zoom},format=yuv420p`
+    : `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},${zoom},format=yuv420p`;
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', img, '-filter_complex', filtro, '-t', '12', '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', mp4]);
+};
+
+const dibujarToma = async (descripcion, frase, destino, nombre) => {
+  if (cuentaDibujos.cf + cuentaDibujos.gemini >= MAX_DIBUJOS) {
+    console.log(`  ya se dibujaron ${MAX_DIBUJOS} imágenes en este video, no dibujo más`);
+    return false;
+  }
+  const prompt = `${descripcion}. ${ESTILO_DIBUJO}${frase ? ` The image must clearly show what this Spanish narration says: "${frase.slice(0, 200)}"` : ''}`;
+  console.log(`  🎨 dibujando: ${descripcion}`);
+  let buf = null;
+  let quien = '';
+  if (cfVivo) {
+    buf = await dibujarCloudflare(prompt);
+    quien = 'cf';
+  }
+  if (!buf && geminiDibujaVivo) {
+    buf = await dibujarGemini(prompt);
+    quien = 'gemini';
+  }
+  if (!buf) {
+    cuentaDibujos.fallos++;
+    console.log('  no se pudo dibujar');
+    return false;
+  }
+  try {
+    await fs.mkdir('public/fotos-tmp', {recursive: true});
+    const img = path.join('public/fotos-tmp', `ia-${nombre}.img`);
+    await fs.writeFile(img, buf);
+    imagenIAaVideo(img, destino);
+    cuentaDibujos[quien]++;
+    return true;
+  } catch (e) {
+    cuentaDibujos.fallos++;
+    console.log(`  la imagen dibujada no se pudo convertir en video: ${e.message.split('\n')[0]}`);
+    return false;
+  }
+};
+
 // Lo que dice la voz en cada toma (para la revision con IA)
 let guionTxt = '';
 try {
@@ -334,8 +463,20 @@ for (const toma of tomas) {
     const reemplazo = ultimaBuena || tomas.map((t) => String(t.buscar ?? '')).find((b) => b && !PROHIBIDAS.test(b)) || 'ocean waves';
     console.log(`⚠ ${toma.clip}: la búsqueda "${buscar}" trae plantillas, uso "${reemplazo}"`);
     buscar = reemplazo;
-  } else if (!/^PROPIA:/i.test(buscar)) {
+  } else if (!/^(PROPIA|DIBUJAR):/i.test(buscar)) {
     ultimaBuena = buscar;
+  }
+  // Dibujo a proposito: la busqueda dice DIBUJAR: descripcion en ingles
+  const pedido = buscar.match(/^DIBUJAR:\s*(.+)$/i);
+  if (pedido) {
+    const vis = tomaVisible.get(toma.clip);
+    if (DIBUJAR && (await dibujarToma(pedido[1].trim(), vis ? fraseDe(vis) : '', destino, toma.clip.replace(/\W+/g, '-')))) {
+      listos.push(destino);
+      console.log(`🎨 ${toma.clip} ← dibujado: ${pedido[1].trim()}`);
+      continue;
+    }
+    buscar = pedido[1].trim();
+    console.log(`⚠ ${toma.clip}: no se pudo dibujar, busco "${buscar}" en los bancos de video`);
   }
   // Imagen o video propio: la busqueda dice PROPIA:nombre.png y el archivo esta en public/propias/
   const propia = buscar.match(/^PROPIA:\s*(.+)$/i);
@@ -465,6 +606,15 @@ for (const toma of tomas) {
   ignorarHistorial = false;
   if (!elegido && revisarEsta) console.log(`  ninguno sirvió para "${buscar}"`);
 
+  // Ningun clip sirvio: la IA dibuja la imagen exacta de lo que dice la voz
+  if (!elegido && DIBUJAR && visible) {
+    if (await dibujarToma(buscar, frase, destino, toma.clip.replace(/\W+/g, '-'))) {
+      listos.push(destino);
+      console.log(`🎨 ${toma.clip} ← dibujado por la IA: "${buscar}"`);
+      continue;
+    }
+  }
+
   if (elegido) {
     try {
       if (elegido.foto) {
@@ -527,5 +677,6 @@ await fs.writeFile(HISTORIAL, JSON.stringify(historial), 'utf8');
 console.log(`Historial actualizado: ${nuevos.length} clips nuevos, ${historial.length} en total`);
 console.log(`RESUMEN: ${cuenta.pexels} de Pexels, ${cuenta.pixabay} de Pixabay, ${cuenta.fotos} fotos, ${pendientes.length} copiados, ${cuenta.sinCoincidir} sin coincidir`);
 if (cuenta.sinCoincidir) console.log('REVISA las tomas marcadas con ⚠: puede que no muestren lo que dice la voz.');
+if (DIBUJAR) console.log(`DIBUJOS CON IA: ${cuentaDibujos.cf} de Cloudflare, ${cuentaDibujos.gemini} de Gemini, ${cuentaDibujos.fallos} fallidos`);
 if (GEMINI) console.log(`REVISIÓN CON IA: ${cuentaIA.ok} aprobados, ${cuentaIA.no} rechazados, ${cuentaIA.sinRevisar} sin revisar`);
 console.log('Listo.');
