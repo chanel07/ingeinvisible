@@ -93,13 +93,14 @@ const revisarConIA = async (candidato, frase, buscar) => {
   if (!REVISAR || !candidato.fotos?.length) return null;
   const fotos = (await Promise.all(candidato.fotos.slice(0, 2).map(fotoBase64))).filter(Boolean);
   if (!fotos.length) return null;
-  const prompt = `Eres el editor de un canal de YouTube de divulgación. Revisa si este clip de video de stock sirve para esta parte del video.
-La voz dice en este momento: "${frase || buscar}"
+  const contexto = (typeof guionTxt === 'string' ? guionTxt : '').replace(/\s+/g, ' ').split(/(?<=[.!?])\s+/).slice(0, 2).join(' ').slice(0, 220);
+  const prompt = `Eres el editor de un canal de YouTube de divulgación sobre la casa. Revisa si este clip de video de stock sirve para esta parte del video.
+${contexto ? `El video trata de: "${contexto}"\n` : ''}La voz dice en este momento: "${frase || buscar}"
 Lo que se buscó: "${buscar}"
 Te mando ${fotos.length} foto(s) del mismo clip.
 Primero identifica el OBJETO PRINCIPAL del que habla la voz (por ejemplo: una regleta, una nevera, una plancha, un cable, una estufa).
 Responde ok=true si ese objeto principal se ve claramente en las fotos, aunque no se vea exactamente la situación que describe la voz (por ejemplo, la regleta no está conectada a otra, el cable no está derretido, la nevera está cerrada) y aunque el ángulo cambie. Es mejor mostrar el objeto correcto en una situación normal que no mostrar nada.
-Responde ok=false solo si el objeto principal NO aparece o es otra cosa (por ejemplo: una uña cuando se habla de un clavo, la puerta de una habitación cuando se habla de una nevera, un robot de cocina cuando se habla de una freidora de aire, el motor de un carro cuando se habla de un aire acondicionado, una vela cuando se habla de un enchufe, una gallina o un pollo vivo con plumas cuando se habla de pollo crudo o carne para cocinar, un animal vivo cuando se habla de comida), si es contenido sensual o con poca ropa, si parece hecho con IA o animado, o si tiene textos o logos grandes.
+Ojo con las palabras de doble sentido: el objeto tiene que ser el de la casa del que habla el video (un flotador eléctrico de un tanque de agua, no un pato, una boya o un juguete flotando; una bomba de agua de la casa, no una bomba de gasolina; pollo crudo para cocinar, no un ave viva).\nResponde ok=false solo si el objeto principal NO aparece o es otra cosa (por ejemplo: una uña cuando se habla de un clavo, la puerta de una habitación cuando se habla de una nevera, un robot de cocina cuando se habla de una freidora de aire, el motor de un carro cuando se habla de un aire acondicionado, una vela cuando se habla de un enchufe, una gallina o un pollo vivo con plumas cuando se habla de pollo crudo o carne para cocinar, un animal vivo cuando se habla de comida), si es contenido sensual o con poca ropa, si parece hecho con IA o animado, o si tiene textos o logos grandes.
 Responde SOLO con JSON: {"ok": true o false, "ve": "lo que se ve, máximo 8 palabras, en español"}`;
   while (modelosVivos.length) {
     if (Date.now() > LIMITE_REVISION) {
