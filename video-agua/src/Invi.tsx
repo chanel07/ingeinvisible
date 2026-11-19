@@ -1,5 +1,7 @@
-// Invi, el ingeniero invisible: el personaje del canal, dibujado con codigo (SVG).
-// Va dentro del proyecto, asi no hace falta subir imagenes.
+// Invi, el ingeniero invisible: el personaje del canal.
+// Ahora sale el Invi 3D (imagenes en video-agua/public/invi3d-*.png). Esas imagenes TIENEN que estar subidas;
+// para volver al Invi dibujado con codigo de antes, cambia USAR_3D a false.
+import {staticFile} from 'remotion';
 const N = '#10233a';
 const B = `stroke='${N}' stroke-width='7'`;
 
@@ -36,6 +38,16 @@ const puno = (x: number, y: number, rot: number, dedo?: 'indice' | 'pulgar') =>
   `<path d='M-26 -30 L-26 0 M2 -32 L2 0 M28 -30 L28 0' stroke='${N}' stroke-width='5' stroke-linecap='round'/>` +
   `<rect x='-52' y='44' width='104' height='30' rx='10' fill='#ff7a1a' ${B}/></g>`;
 
+// Pulgar arriba: puno de lado (dedos doblados en fila) y el pulgar parado encima,
+// para que se lea clarito como "todo bien"
+const pulgarArriba = (x: number, y: number) =>
+  `<g transform='translate(${x},${y})'>` +
+  `<g transform='rotate(-10 -26 -20)'><rect x='-46' y='-118' width='44' height='104' rx='22' fill='#fff' ${B}/>` +
+  `<rect x='-38' y='-108' width='24' height='22' rx='9' fill='#e3edf5'/></g>` +
+  `<rect x='-48' y='-34' width='86' height='106' rx='28' fill='#fff' ${B}/>` +
+  [0, 1, 2, 3].map((k) => `<rect x='-6' y='${-30 + k * 25}' width='66' height='27' rx='13.5' fill='#fff' ${B}/>`).join('') +
+  `<rect x='-50' y='70' width='92' height='28' rx='10' fill='#ff7a1a' ${B}/></g>`;
+
 const lupaEnMano = (x: number, y: number, rot: number) =>
   `<g transform='translate(${x},${y}) rotate(${rot})'>` +
   `<rect x='-15' y='-150' width='30' height='130' rx='13' fill='#ff7a1a' ${B}/>` +
@@ -56,7 +68,7 @@ const dibujar = (pose: string) => {
     pose === 'saludo' ? lupaEnMano(215, 690, -12) + manoAbierta(625, 350, 18)
     : pose === 'senala' ? lupaEnMano(215, 690, -12) + puno(640, 360, 70, 'indice')
     : pose === 'sorpresa' ? manoAbierta(190, 360, -22) + manoAbierta(610, 360, 22) + lupaEnMano(600, 720, 14)
-    : lupaEnMano(215, 690, -12) + puno(610, 520, 0, 'pulgar');
+    : lupaEnMano(215, 690, -12) + pulgarArriba(600, 500);
   return (
     `<svg xmlns='http://www.w3.org/2000/svg' width='800' height='800' viewBox='0 0 800 800'>` +
     `<defs><radialGradient id='cuerpo' cx='50%' cy='35%' r='65%'><stop offset='0%' stop-color='#bffcff' stop-opacity='0.30'/><stop offset='100%' stop-color='#38e8ff' stop-opacity='0.08'/></radialGradient>` +
@@ -85,9 +97,22 @@ const dibujar = (pose: string) => {
   );
 };
 
-export const INVI: Record<string, string> = {
+// Invi dibujado (el de antes)
+export const INVI_DIBUJO: Record<string, string> = {
   saludo: dibujar('saludo'),
   senala: dibujar('senala'),
   sorpresa: dibujar('sorpresa'),
   pulgar: dibujar('pulgar'),
 };
+
+// Invi 3D. Mientras no haya imagen de "senala", se usa la de saludo.
+// Cuando subas public/invi3d-senala.png, cambia 'invi3d-saludo.png' por 'invi3d-senala.png' abajo.
+const USAR_3D = true;
+export const INVI: Record<string, string> = USAR_3D
+  ? {
+      saludo: staticFile('invi3d-saludo.png'),
+      senala: staticFile('invi3d-saludo.png'),
+      sorpresa: staticFile('invi3d-sorpresa.png'),
+      pulgar: staticFile('invi3d-pulgar.png'),
+    }
+  : INVI_DIBUJO;
