@@ -172,6 +172,9 @@ jobs:
           CLIPS_ESTRICTO: 'si'
           # Gemini revisa cada clip antes de usarlo (si muestra lo que dice la voz)
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+          # Si ningun clip sirve, Cloudflare dibuja la imagen exacta de lo que dice la voz
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
         run: rm -rf public/clips && node scripts/descargar-clips.mjs
 
       - name: Preparar clips
