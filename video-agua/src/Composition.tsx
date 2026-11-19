@@ -197,11 +197,14 @@ const Invi = ({pose, size, desde = 0, hasta, lado = 'izquierda', style}: {pose: 
   const sale = hasta !== undefined ? interpolate(frame, [hasta, hasta + 8], [0, 1], fijo) : 0;
   const flota = Math.sin((frame - desde) / 9) * 7;
   const saluda = pose === 'saludo' ? Math.sin((frame - desde) / 3.5) * 6 : 0;
-  const fuera = (lado === 'izquierda' ? -1 : 1) * sale * size * 1.3;
+  // El Invi 3D es de cuerpo entero (mas alto que ancho): se agranda un poco para que se vea igual de grande
+  const esDibujo = DIBUJOS[pose].startsWith('<svg');
+  const tam = esDibujo ? size : Math.round(size * 1.3);
+  const fuera = (lado === 'izquierda' ? -1 : 1) * sale * tam * 1.3;
   return (
     <Img
-      src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(DIBUJOS[pose])}`}
-      style={{position: 'absolute', width: size, height: size, ...style, transform: `translate(${fuera}px, ${flota}px) scale(${Math.max(0, entra)}) rotate(${saluda}deg)`, filter: 'drop-shadow(0 10px 22px rgba(0,0,0,0.45))'}}
+      src={esDibujo ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(DIBUJOS[pose])}` : DIBUJOS[pose]}
+      style={{position: 'absolute', width: tam, height: tam, objectFit: 'contain', objectPosition: 'bottom', ...style, transform: `translate(${fuera}px, ${flota}px) scale(${Math.max(0, entra)}) rotate(${saluda}deg)`, filter: 'drop-shadow(0 10px 22px rgba(0,0,0,0.45))'}}
     />
   );
 };
@@ -224,16 +227,19 @@ const CierreInvi = () => {
   const vertical = height > width;
   // En horizontal Invi va mas pequeno y el globo mas arriba, para que no tape el texto
   const tam = vertical ? 440 : 360;
+  // El Invi 3D sale 30% mas grande (ver componente Invi): el globo va mas arriba para no tapar el casco
+  const es3d = !DIBUJOS.pulgar.startsWith('<svg');
+  const tamReal = es3d ? Math.round(tam * 1.3) : tam;
   const globo = spring({frame: frame - 6, fps, config: {damping: 11, stiffness: 160}});
   return (
     <AbsoluteFill>
-      <div style={{position: 'absolute', left: 0, right: 0, bottom: vertical ? '56%' : '61%', display: 'flex', justifyContent: 'center', opacity: Math.min(1, Math.max(0, globo)), transform: `scale(${0.6 + 0.4 * Math.max(0, globo)})`}}>
+      <div style={{position: 'absolute', left: 0, right: 0, bottom: vertical ? (es3d ? '60%' : '56%') : (es3d ? '66%' : '61%'), display: 'flex', justifyContent: 'center', opacity: Math.min(1, Math.max(0, globo)), transform: `scale(${0.6 + 0.4 * Math.max(0, globo)})`}}>
         <div style={{position: 'relative', background: '#ffffff', color: '#10233a', fontWeight: 900, fontSize: 54, padding: '22px 40px', borderRadius: 40, border: '6px solid #10233a', boxShadow: '0 12px 30px rgba(0,0,0,0.45)', textAlign: 'center', maxWidth: '80%'}}>
           {CIERRE_INVI}
           <div style={{position: 'absolute', left: '50%', bottom: -34, width: 0, height: 0, borderLeft: '22px solid transparent', borderRight: '22px solid transparent', borderTop: '34px solid #10233a', transform: 'translateX(-50%)'}} />
         </div>
       </div>
-      <Invi pose="pulgar" size={tam} style={{left: `calc(50% - ${tam / 2}px)`, bottom: vertical ? '29%' : '20%'}} />
+      <Invi pose="pulgar" size={tam} style={{left: `calc(50% - ${tamReal / 2}px)`, bottom: vertical ? '29%' : '20%'}} />
     </AbsoluteFill>
   );
 };
