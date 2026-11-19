@@ -534,12 +534,30 @@ if (!RETO && !MIENTRAS && ultima.split(/\s+/).length < 8) console.log('AVISO: la
     .filter(Boolean);
   const especiales = lista.map((b, k) => ({b, k})).filter((x) => /^(DIBUJAR|PROPIA):/i.test(x.b));
   const sinPrefijo = (b) => b.replace(/^(DIBUJAR|PROPIA):\s*/i, '').toLowerCase();
-  const faltan = especiales.filter((x) => !plan.some((t) => t.buscar.toLowerCase() === x.b.toLowerCase() || t.buscar.toLowerCase() === sinPrefijo(x.b)));
-  // Si la IA copio la descripcion sin el prefijo, se le devuelve el prefijo
+  // Parecido entre dos busquedas: cuantas palabras importantes comparten
+  const pal = (b) => new Set(sinPrefijo(b).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 3));
+  const parecido = (a, b) => {
+    const A = pal(a);
+    const B = pal(b);
+    if (!A.size || !B.size) return 0;
+    let comunes = 0;
+    for (const w of A) if (B.has(w)) comunes++;
+    return comunes / Math.min(A.size, B.size);
+  };
+  // Si la IA copio la descripcion sin el prefijo (o casi igual), se le devuelve el prefijo
   for (const x of especiales) {
-    const t = plan.find((t) => !/^(DIBUJAR|PROPIA):/i.test(t.buscar) && t.buscar.toLowerCase() === sinPrefijo(x.b));
-    if (t) t.buscar = x.b;
+    if (plan.some((t) => t.buscar.toLowerCase() === x.b.toLowerCase())) continue;
+    const t = plan
+      .filter((t) => !t.plantilla && !/^(DIBUJAR|PROPIA):/i.test(t.buscar))
+      .map((t) => ({t, p: parecido(t.buscar, x.b)}))
+      .filter((o) => o.p >= 0.6)
+      .sort((a, b) => b.p - a.p)[0]?.t;
+    if (t) {
+      t.buscar = x.b;
+      t.relleno = false;
+    }
   }
+  const faltan = especiales.filter((x) => !plan.some((t) => t.buscar.toLowerCase() === x.b.toLowerCase()));
   const libres = () => plan.map((t, i) => ({t, i})).filter(({t}) => !t.plantilla && !/^(DIBUJAR|PROPIA):/i.test(t.buscar));
   for (const x of faltan) {
     let opciones = libres();
