@@ -315,7 +315,18 @@ const DIBUJAR = (process.env.CLIPS_DIBUJAR ?? 'si').toLowerCase() !== 'no' && (!
 const MAX_DIBUJOS = Number(process.env.CLIPS_MAX_DIBUJOS ?? 6) || 6;
 const MODELOS_CF = ['@cf/black-forest-labs/flux-1-schnell', '@cf/bytedance/stable-diffusion-xl-lightning'];
 const MODELOS_DIBUJO_GEMINI = ['gemini-2.5-flash-image', 'gemini-2.0-flash-preview-image-generation'];
-const ESTILO_DIBUJO = 'Photorealistic photo, natural light, modest Latin American home in Colombia, close-up, sharp focus, realistic colors. No text, no letters, no logos, no watermark, no brand names.';
+const ESTILO_DIBUJO = 'Photorealistic photo, natural light, modest Latin American home in Colombia, close-up, sharp focus, realistic colors. Clean unbranded objects with completely blank plain surfaces, nothing written anywhere.';
+// La IA de dibujo escribe mal: si se le piden numeros, etiquetas o letreros, inventa letras raras.
+// Se quitan esas partes de la descripcion (los numeros los ponen las animaciones del video).
+const limpiarDescripcion = (d) =>
+  d
+    .replace(/\b(with|showing|that says|that reads|reading|labeled|labelled|marked)\b[^,.;]*?\b(numbers?|text|letters?|words?|labels?|signs?|printed|written|writing|digits?|\d+)\b[^,.;]*/gi, '')
+    .replace(/\b(the )?(numbers?|digits?) (\d+|one|two|three|four|five|ten|fifteen|twenty|thirty|forty|fifty)\b/gi, '')
+    .replace(/\b\d+\s*-?\s*(amps?|amperes?|volts?|watts?|kw|kwh|v|w|a)\b/gi, '')
+    .replace(/\b(printed|written|labels?|labeled|signs?|signage|text|letters?|lettering|words?|caption|logo|brand)\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.;])/g, '$1')
+    .trim();
 const cuentaDibujos = {cf: 0, gemini: 0, fallos: 0};
 let cfVivo = !!(CF_CUENTA && CF_TOKEN);
 let geminiDibujaVivo = !!GEMINI;
@@ -397,26 +408,59 @@ const imagenIAaVideo = (img, mp4) => {
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', img, '-filter_complex', filtro, '-t', '12', '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', mp4]);
 };
 
+// Gemini mira la imagen dibujada: si tiene letras o numeros inventados, se vuelve a dibujar
+const tieneLetras = async (buf) => {
+  if (!GEMINI || !modelosVivos.length) return null;
+  const mime = buf[0] === 0x89 ? 'image/png' : buf[0] === 0x52 ? 'image/webp' : 'image/jpeg';
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelosVivos[0]}:generateContent?key=${GEMINI}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        contents: [{parts: [{text: 'Mira esta imagen. ¿Se ve escrita alguna letra, palabra, número o texto (aunque sea pequeño, borroso o sin sentido)? Responde SOLO con JSON: {"letras": true o false}'}, {inline_data: {mime_type: mime, data: buf.toString('base64')}}]}],
+        generationConfig: {temperature: 0, maxOutputTokens: 512, responseMimeType: 'application/json'},
+      }),
+      signal: conTiempo(40000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const t = (data?.candidates?.[0]?.content?.parts ?? []).filter((p) => !p.thought).map((p) => p.text ?? '').join('');
+    const j = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1));
+    return j.letras === true || /^(true|si|sí|yes)$/i.test(String(j.letras));
+  } catch {
+    return null;
+  }
+};
+
 const dibujarToma = async (descripcion, frase, destino, nombre) => {
   if (cuentaDibujos.cf + cuentaDibujos.gemini >= MAX_DIBUJOS) {
     console.log(`  ya se dibujaron ${MAX_DIBUJOS} imágenes en este video, no dibujo más`);
     return false;
   }
-  const prompt = `${descripcion}. ${ESTILO_DIBUJO}${frase ? ` The image must clearly show what this Spanish narration says: "${frase.slice(0, 200)}"` : ''}`;
-  console.log(`  🎨 dibujando: ${descripcion}`);
+  const limpia = limpiarDescripcion(descripcion) || descripcion;
+  const prompt = `${limpia}. ${ESTILO_DIBUJO}`;
+  console.log(`  🎨 dibujando: ${limpia}`);
   let buf = null;
   let quien = '';
-  if (cfVivo) {
-    buf = await dibujarCloudflare(prompt);
-    quien = 'cf';
-  }
-  if (!buf && geminiDibujaVivo) {
-    buf = await dibujarGemini(prompt);
-    quien = 'gemini';
+  for (let intento = 1; intento <= 3; intento++) {
+    buf = null;
+    if (cfVivo) {
+      buf = await dibujarCloudflare(prompt);
+      quien = 'cf';
+    }
+    if (!buf && geminiDibujaVivo) {
+      buf = await dibujarGemini(prompt);
+      quien = 'gemini';
+    }
+    if (!buf) break;
+    const letras = await tieneLetras(buf);
+    if (letras !== true) break;
+    console.log(`    la imagen salió con letras raras (intento ${intento}/3)${intento < 3 ? ', la dibujo otra vez' : ''}`);
+    if (intento === 3) buf = null;
   }
   if (!buf) {
     cuentaDibujos.fallos++;
-    console.log('  no se pudo dibujar');
+    console.log('  no se pudo dibujar una imagen limpia');
     return false;
   }
   try {
