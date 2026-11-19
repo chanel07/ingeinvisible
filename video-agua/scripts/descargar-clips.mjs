@@ -315,7 +315,13 @@ const DIBUJAR = (process.env.CLIPS_DIBUJAR ?? 'si').toLowerCase() !== 'no' && (!
 const MAX_DIBUJOS = Number(process.env.CLIPS_MAX_DIBUJOS ?? 6) || 6;
 const MODELOS_CF = ['@cf/black-forest-labs/flux-1-schnell', '@cf/bytedance/stable-diffusion-xl-lightning'];
 const MODELOS_DIBUJO_GEMINI = ['gemini-2.5-flash-image', 'gemini-2.0-flash-preview-image-generation'];
-const ESTILO_DIBUJO = 'Photorealistic photo, natural light, modest Latin American home in Colombia, close-up, sharp focus, realistic colors. Clean unbranded objects with completely blank plain surfaces, nothing written anywhere.';
+// Estilo de las imagenes dibujadas (CLIPS_ESTILO_DIBUJO): 3d = como pelicula animada, igual
+// que el Invi nuevo (por defecto); real = como foto.
+const ESTILO_ELEGIDO = (process.env.CLIPS_ESTILO_DIBUJO ?? '3d').trim().toLowerCase() === 'real' ? 'real' : '3d';
+const SIN_LETRAS = 'Clean unbranded objects with completely blank plain surfaces, nothing written anywhere.';
+const ESTILO_DIBUJO = ESTILO_ELEGIDO === 'real'
+  ? `Photorealistic photo, natural light, modest Latin American home in Colombia, close-up, sharp focus, realistic colors. ${SIN_LETRAS}`
+  : `High quality 3D animated movie style render, like a Pixar film scene, vibrant saturated colors, soft studio lighting with gentle glow, smooth clean shapes, cozy Latin American home in Colombia, close-up, sharp focus, cheerful look. ${SIN_LETRAS}`;
 // La IA de dibujo escribe mal: si se le piden numeros, etiquetas o letreros, inventa letras raras.
 // Se quitan esas partes de la descripcion (los numeros los ponen las animaciones del video).
 const limpiarDescripcion = (d) =>
@@ -330,7 +336,7 @@ const limpiarDescripcion = (d) =>
 const cuentaDibujos = {cf: 0, gemini: 0, fallos: 0};
 let cfVivo = !!(CF_CUENTA && CF_TOKEN);
 let geminiDibujaVivo = !!GEMINI;
-console.log(DIBUJAR ? `Dibujo con IA: encendido (${cfVivo ? 'Cloudflare' : ''}${cfVivo && geminiDibujaVivo ? ' + ' : ''}${geminiDibujaVivo ? 'Gemini' : ''}, hasta ${MAX_DIBUJOS} por video)` : 'Dibujo con IA: apagado');
+console.log(DIBUJAR ? `Dibujo con IA: encendido (${cfVivo ? 'Cloudflare' : ''}${cfVivo && geminiDibujaVivo ? ' + ' : ''}${geminiDibujaVivo ? 'Gemini' : ''}, hasta ${MAX_DIBUJOS} por video, estilo ${ESTILO_ELEGIDO})` : 'Dibujo con IA: apagado');
 
 // Corta la espera si el servicio no responde (sin dejar el programa esperando al final)
 const conTiempo = (ms) => AbortSignal.timeout(ms);
