@@ -13,6 +13,14 @@ on:
         description: 'Voz: vacío = Gemini (natural), gonzalo = la voz de antes, o el nombre de tu grabación en video-agua/public/voces/'
         required: false
         type: string
+      estilo:
+        description: 'Estilo de las imágenes que dibuja la IA cuando no hay clip'
+        required: false
+        type: choice
+        default: '3d'
+        options:
+          - '3d'
+          - 'real'
       evitar:
         description: 'Clips que NO deben salir, en inglés separados por coma (ej: child, bedroom, car)'
         required: false
@@ -163,6 +171,7 @@ jobs:
           # Si ningun clip sirve, Cloudflare dibuja la imagen exacta de lo que dice la voz
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLIPS_ESTILO_DIBUJO: ${{ inputs.estilo || '3d' }}
         run: rm -rf public/clips && node scripts/descargar-clips.mjs
 
       - name: Preparar clips
