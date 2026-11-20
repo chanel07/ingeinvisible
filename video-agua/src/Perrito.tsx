@@ -1,5 +1,8 @@
 // El perrito de Perros Perdidos Santa Marta: un beagle cachorro con collar rojo
-// y placa de ubicacion, dibujado con codigo (SVG). No hace falta subir imagenes.
+// y placa de ubicacion. Ahora sale el perrito 3D (imagenes en video-agua/public/perro3d-*.png).
+// Esas imagenes TIENEN que estar subidas; para volver al perrito dibujado con codigo,
+// cambia USAR_3D a false.
+import {staticFile} from 'remotion';
 const N = '#3a2414';
 
 const ojos = (t: string) => {
@@ -61,9 +64,22 @@ const dibujar = (pose: string) => {
   );
 };
 
-export const PERRITO: Record<string, string> = {
+// Perrito dibujado (el de antes)
+export const PERRITO_DIBUJO: Record<string, string> = {
   saludo: dibujar('saludo'),
   senala: dibujar('senala'),
   sorpresa: dibujar('sorpresa'),
   pulgar: dibujar('pulgar'),
 };
+
+// Perrito 3D. Mientras no haya imagen de "sorpresa", se usa la de saludo.
+// Cuando subas public/perro3d-sorpresa.png, cambia la linea de sorpresa abajo.
+const USAR_3D = true;
+export const PERRITO: Record<string, string> = USAR_3D
+  ? {
+      saludo: staticFile('perro3d-saludo.png'),
+      senala: staticFile('perro3d-senala.png'),
+      sorpresa: staticFile('perro3d-saludo.png'),
+      pulgar: staticFile('perro3d-pulgar.png'),
+    }
+  : PERRITO_DIBUJO;
