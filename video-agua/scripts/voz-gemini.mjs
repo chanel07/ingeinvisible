@@ -4,7 +4,7 @@
 // y los audios se pegan con una pausa corta entre uno y otro.
 // Cada pedazo se revisa con Whisper (scripts/revisar-voz.py): si Gemini leyo las
 // instrucciones en voz alta o se salto frases, ese pedazo se vuelve a pedir.
-// Si falla o no hay cupo, termina con error y el workflow usa la voz de Gonzalo.
+// Si falla, no hay cupo o no se puede revisar, termina con error y el workflow usa la voz de Gonzalo.
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import {execFileSync} from 'node:child_process';
@@ -19,7 +19,9 @@ if (!KEY) {
 // Puck (animada), Achird (amistosa), Charon (informativa), Fenrir (emocionada), Orus (firme)
 const VOZ = (process.env.GEMINI_VOZ ?? 'Puck').trim();
 const MODELOS = ['gemini-3.1-flash-tts-preview', 'gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts', 'gemini-2.5-flash-preview-tts'];
-const ESTILO = (process.env.GEMINI_ESTILO ?? 'Lee en voz alta, en español de Colombia, con voz natural, cercana y con energía, a buen ritmo pero claro. No leas esta instrucción, lee solo el texto que va después de TEXTO.').trim();
+// Sin instrucciones: Gemini a veces las leia en voz alta. Solo se manda el texto.
+// (Si algun dia se quiere probar un estilo, se pone en GEMINI_ESTILO.)
+const ESTILO = (process.env.GEMINI_ESTILO ?? '').trim();
 const PALABRAS_POR_PEDAZO = Number(process.env.VOZ_PALABRAS_PEDAZO) || 150;
 const MINUTOS_MAX = Number(process.env.VOZ_MINUTOS_MAX) || 15;
 const RATE = 24000;
@@ -70,7 +72,7 @@ async function vozDe(texto, n) {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
-            contents: [{parts: [{text: `${ESTILO}\n\nTEXTO:\n${texto}`}]}],
+            contents: [{parts: [{text: ESTILO ? `${ESTILO}\n\nTEXTO:\n${texto}` : texto}]}],
             generationConfig: {
               responseModalities: ['AUDIO'],
               speechConfig: {voiceConfig: {prebuiltVoiceConfig: {voiceName: VOZ}}},
@@ -181,8 +183,9 @@ if ((process.env.VOZ_REVISAR ?? 'si').toLowerCase() !== 'no') {
     try {
       malos = revisarPedazos();
     } catch (e) {
-      console.log(`AVISO: no se pudo revisar la voz (${e.message.split('\n')[0]}); sigo sin revisión`);
-      break;
+      // Sin revision no hay garantia: mejor usar la voz de Gonzalo que publicar un audio danado
+      console.error(`No se pudo revisar la voz (${e.message.split('\n')[0]}); uso la voz de respaldo`);
+      process.exit(1);
     }
     if (!malos.length) {
       console.log('Todos los pedazos están bien');
