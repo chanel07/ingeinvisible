@@ -173,6 +173,8 @@ jobs:
           REMOTION_MARCA: ' '
           REMOTION_LIMPIO: 'si'
           REMOTION_TITULO: ${{ inputs.titulo }}
+          # El perrito 3D de la pagina (src/Perrito.tsx). Para quitarlo, cambia perro por no
+          REMOTION_PERSONAJE: 'perro'
         run: |
           mkdir -p out
           npx remotion render Short out/perros-final.mp4 \
