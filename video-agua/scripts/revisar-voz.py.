@@ -16,9 +16,10 @@ from difflib import SequenceMatcher
 import numpy as np
 
 # Palabras de las instrucciones: si Whisper las oye y no estan en el texto, Gemini las leyo
-INSTRUCCIONES = ['acento', 'latinoamerica', 'colombiano neutro', 'lee exactamente', 'sin agregar',
-                 'quitar palabras', 'en voz alta', 'tono natural', 'narrador', 'pequena pausa',
-                 'buen ritmo', 'transcripcion', 'texto']
+INSTRUCCIONES = ['acento', 'latinoamerica', 'colombiano', 'colombia', 'espanol natural', 'espanol de',
+                 'lee exactamente', 'lee en voz', 'lee solo', 'no leas', 'sin agregar', 'quitar palabras',
+                 'en voz alta', 'voz natural', 'tono natural', 'narrador', 'pequena pausa', 'buen ritmo',
+                 'con energia', 'esta instruccion', 'transcripcion', 'texto']
 EXTRA_SEGUIDAS = 8    # palabras de mas seguidas que no estan en el texto = leyo algo que no debia
 MIN_COBERTURA = 0.75  # debe decir al menos el 75% de las palabras del texto
 
