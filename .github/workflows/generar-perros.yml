@@ -20,11 +20,23 @@ on:
           - largo
           - corto
           - extendido
+      voz:
+        description: 'Voz: vacío = Gemini (natural), gonzalo = la voz de antes'
+        required: false
+        type: string
+      estilo:
+        description: 'Estilo de las imágenes que dibuja la IA cuando no hay clip'
+        required: false
+        type: choice
+        default: '3d'
+        options:
+          - '3d'
+          - 'real'
 
 jobs:
   perros:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     permissions:
       contents: write
 
@@ -89,12 +101,32 @@ jobs:
         env:
           AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
           AZURE_SPEECH_REGION: eastus
+          VOZ_PEDIDA: ${{ inputs.voz }}
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
         run: |
           sed -i 's/#//g; s/\*//g; s/_//g; s/\[//g; s/\]//g; s/---//g' public/guion.txt
           echo "----- GUION QUE SE VA A NARRAR -----"
           cat public/guion.txt
           echo "------------------------------------"
-          if edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt; then
+          VOZ_LISTA=no
+          # Voz por defecto: Gemini (natural). Con "gonzalo" se usa la voz de antes.
+          VOZ_ELEGIDA="$(printf '%s' "$VOZ_PEDIDA" | tr '[:upper:]' '[:lower:]' | tr -d ' ')"
+          if [ "$VOZ_ELEGIDA" != "gonzalo" ]; then
+            echo "===== Usando la voz natural de Gemini ====="
+            if node scripts/voz-gemini.mjs; then
+              pip install --quiet faster-whisper
+              if python scripts/transcribir-voz.py; then
+                VOZ_LISTA=si
+              else
+                echo "AVISO: no se pudieron sacar los subtítulos de la voz de Gemini, uso la de Gonzalo"
+              fi
+            else
+              echo "AVISO: Gemini no pudo hacer la voz, uso la de Gonzalo"
+            fi
+          fi
+          if [ "$VOZ_LISTA" = "si" ]; then
+            echo "Voz de Gemini lista"
+          elif edge-tts --voice es-CO-GonzaloNeural --file public/guion.txt --write-media public/voz.mp3 --write-subtitles public/voz.srt; then
             echo "Voz generada con edge-tts"
           else
             echo "===== edge-tts falló, uso Azure con la misma voz de Gonzalo ====="
@@ -109,6 +141,12 @@ jobs:
           PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
           CLIPS_OBLIGATORIA: 'dog|dogs|puppy|puppies'
           CLIPS_VERTICAL: 'si'
+          # Gemini revisa cada clip antes de usarlo (si muestra lo que dice la voz)
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+          # Si ningun clip sirve, Cloudflare dibuja la imagen exacta de lo que dice la voz
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLIPS_ESTILO_DIBUJO: ${{ inputs.estilo || '3d' }}
         run: rm -rf public/clips && node scripts/descargar-clips.mjs
 
       - name: Preparar clips
@@ -149,32 +187,47 @@ jobs:
           echo "PESO: ${MB} MB"
           ffprobe -v error -show_entries format=duration,bit_rate -of default=noprint_wrappers=1 out/perros-final.mp4
 
+      - name: Guardar Reel como archivo descargable
+        uses: actions/upload-artifact@v4
+        with:
+          name: perros-${{ inputs.duracion || 'largo' }}-${{ github.run_number }}
+          path: video-agua/out/perros-final.mp4
+          retention-days: 7
+
       - name: Subir Reel al repositorio
         if: inputs.duracion != 'extendido'
         env:
           DURACION: ${{ inputs.duracion }}
         run: |
-          cd video-agua
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add -f out/perros-final.mp4
-          git commit -m "Perros ($DURACION)"
-          git push
-
-      - name: Guardar video extendido para descargar
-        if: inputs.duracion == 'extendido'
-        uses: actions/upload-artifact@v4
-        with:
-          name: perros-extendido-${{ github.run_number }}
-          path: video-agua/out/perros-final.mp4
-          retention-days: 7
+          git add -f video-agua/out/perros-final.mp4
+          git add temas-perros.txt
+          git add -f video-agua/clips-usados.json || true
+          git commit -m "Perros ($DURACION)" || true
+          # Quita los archivos de trabajo para que no estorben al traer cambios del repo
+          git reset --hard -q HEAD
+          git clean -fdq
+          for i in 1 2 3; do
+            if git pull --rebase -X theirs && git push; then
+              echo "Reel subido"
+              exit 0
+            fi
+            echo "No se pudo subir (intento $i/3), reintento en 10s..."
+            git rebase --abort 2>/dev/null || true
+            sleep 10
+          done
+          exit 1
 
       - name: Marcar tema usado
+        if: inputs.duracion == 'extendido'
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git pull --rebase || true
           git add temas-perros.txt
           git add -f video-agua/clips-usados.json || true
           git commit -m "Marcar tema usado y clips usados" || true
+          git reset --hard -q HEAD
+          git clean -fdq
+          git pull --rebase -X theirs || true
           git push || true
