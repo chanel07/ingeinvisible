@@ -186,16 +186,16 @@ PRIORIDAD DE LAS FUENTES:
 - No repitas explicaciones populares de internet como si fueran ciertas. Si no estás seguro de un dato, omítelo: es mejor un dato menos que un dato falso.
 
 REGLAS DEL GUION:
-- Entre 55 y 68 palabras (unos 22 a 26 segundos). Es solo el texto que el narrador dice en voz alta. Cada palabra debe ganarse su lugar.
+- Entre 42 y 52 palabras (unos 18 a 22 segundos). Es solo el texto que el narrador dice en voz alta. Cada palabra debe ganarse su lugar: la gente se va si el video se alarga.
 - TONO: es una conversación con un amigo, no una clase ni una enciclopedia. Háblale de tú, con palabras de todos los días. Se vale una pregunta corta al espectador.
 - Estructura obligatoria, en este orden:
   1. Gancho de máximo 12 palabras, hablándole al espectador de tú.${GANCHO ? ` Debe ser exactamente: ${GANCHO}` : ''}
-  2. Escena cotidiana: UNA sola frase corta, de máximo 14 palabras, que ponga al espectador en una situación que seguramente ha vivido.${APERTURA_PEDIDA ? ' Usa la forma de empezar que pidió el productor.' : ` Debe empezar con: ${APERTURA}`}
+  2. Escena cotidiana: UNA sola frase muy corta, de máximo 10 palabras, que ponga al espectador en una situación que seguramente ha vivido.${APERTURA_PEDIDA ? ' Usa la forma de empezar que pidió el productor.' : ` Debe empezar con: ${APERTURA}`}
   3. El mecanismo paso a paso: causa y efecto, contado con una comparación de la vida diaria.
   4. Al menos UN dato concreto que venga en el tema o en las notas: un nombre técnico o un hecho. Si no viene ningún número en el tema o en las notas, NO inventes números.
   5. La consecuencia práctica para el espectador: qué hacer o qué evitar.
-  6. Cierre: una frase COMPLETA, de al menos 10 palabras, que conecte con el gancho y deje una idea clara para recordar. Puede empezar con La próxima vez que, pero solo si queda natural; en ese caso debe decir qué va a pasar o qué va a recordar el espectador (por ejemplo: La próxima vez que veas X, recuerda que Y). Nunca dejes la frase a medias.
-- Frases cortas, máximo 18 palabras cada una. La escena y el cierre no pueden quitarle espacio a la explicación: si falta espacio, acorta la escena, nunca el mecanismo ni el dato.
+  6. Cierre: una frase COMPLETA, de 8 a 14 palabras, que conecte con el gancho y deje una idea clara para recordar. Puede empezar con La próxima vez que, pero solo si queda natural; en ese caso debe decir qué va a pasar o qué va a recordar el espectador (por ejemplo: La próxima vez que veas X, recuerda que Y). Nunca dejes la frase a medias.
+- Frases cortas, máximo 15 palabras cada una. La respuesta a lo que promete el gancho debe llegar en la primera mitad del guion, no al final. La escena y el cierre no pueden quitarle espacio a la explicación: si falta espacio, acorta la escena, nunca el mecanismo ni el dato.
 - Español neutro de Latinoamérica. Si el objeto tiene nombres distintos por país, menciona dos (por ejemplo: foco o bombillo, llave o grifo).
 - Escribe los números en letras (cincuenta grados, no 50 grados).
 - PROHIBIDO: frases de relleno como "es fascinante", "increíble", "la ingeniería es asombrosa", "¿sabías que...?", "en el mundo moderno", "hoy te voy a contar", "en este video", "no lo vas a creer", "suscríbete".
@@ -203,7 +203,7 @@ REGLAS DEL GUION:
 - No exageres el peligro. Si algo es raro, dilo como raro.
 
 REGLAS DEL PLAN DE TOMAS:
-- Entre 6 y 7 tomas, en el orden del guion, una por cada frase del guion. Cada toma dura de 3 a 4 segundos: cambia de clip justo cuando cambia la frase, y usa una búsqueda distinta en cada toma.
+- Entre 5 y 6 tomas, en el orden del guion, una por cada frase del guion. Cada toma dura de 3 a 4 segundos: cambia de clip justo cuando cambia la frase, y usa una búsqueda distinta en cada toma.
 - "desde": frase EXACTA de 3 a 6 palabras copiada del guion donde empieza esa toma. La primera toma lleva "desde": "".
 - "clip": nombre único en español con guiones, terminado en .mp4 (por ejemplo cable-caliente.mp4).
 - "buscar": búsqueda en INGLÉS para video de stock que muestre EXACTAMENTE la acción que dice la voz en esa toma, con quién la hace y sobre qué objeto: verbo + objeto + detalle. Si la voz dice "abres la puerta del microondas", buscar "person opening microwave door"; si dice "conectas el cargador", buscar "hand plugging charger into outlet". Nunca solo el objeto quieto ni algo abstracto como "danger". Si el productor dio búsquedas, úsalas; si una empieza con DIBUJAR: o PROPIA:, cópiala EXACTA, con ese prefijo, en la toma que le corresponde. NUNCA uses subscribe, thank you, intro, outro, youtube ni texto.
@@ -287,7 +287,7 @@ const MODELOS_GUION = ['gemini-3.6-flash', 'gemini-2.5-flash'];
 if (GROQ) MODELOS_GUION.push('groq:openai/gpt-oss-120b', 'groq:qwen/qwen3.6-27b', 'groq:openai/gpt-oss-20b');
 
 // Limite de palabras: si el guion se pasa, se le pide a Gemini que lo acorte
-const MAX_PALABRAS = RETO ? 48 : MIENTRAS ? 38 : 70;
+const MAX_PALABRAS = RETO ? 48 : MIENTRAS ? 38 : 56;
 const contarPalabras = (g) => g.replace(/[#*_\[\]]/g, ' ').split(/\s+/).filter(Boolean).length;
 
 async function generarGuion(notas) {
@@ -519,8 +519,8 @@ const palabras = guion.split(/\s+/).filter(Boolean).length;
 const frases = guion.match(/[^.?!]+[.?!]+/g) ?? [guion];
 console.log(`PRIMERA: ${frases[0].trim()}`);
 console.log(`ULTIMA: ${frases[frases.length - 1].trim()}`);
-const LARGO = RETO ? 95 : MIENTRAS ? 65 : 75;
-console.log(`PALABRAS: ${palabras}${palabras > LARGO ? ' (AVISO: largo)' : ''}${palabras < (MIENTRAS ? 30 : 45) ? ' (AVISO: corto)' : ''}`);
+const LARGO = RETO ? 95 : MIENTRAS ? 65 : 60;
+console.log(`PALABRAS: ${palabras}${palabras > LARGO ? ' (AVISO: largo)' : ''}${palabras < (MIENTRAS ? 30 : 36) ? ' (AVISO: corto)' : ''}`);
 const ultima = frases[frases.length - 1].trim();
 if (!RETO && !MIENTRAS && ultima.split(/\s+/).length < 8) console.log('AVISO: la última frase es muy corta, revisa que el cierre no haya quedado a medias');
 
