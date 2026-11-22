@@ -405,14 +405,16 @@ const dibujarGemini = async (prompt) => {
 
 // Imagen fija -> video de 12 s con zoom lento. En vertical la imagen va completa en el
 // centro y detras la misma imagen ampliada y borrosa, para no cortarle los lados.
-const imagenIAaVideo = (img, mp4) => {
+const imagenIAaVideo = (img, mp4, seg = 12) => {
   const W = VERTICAL ? 1080 : 1920;
   const H = VERTICAL ? 1920 : 1080;
-  const zoom = `zoompan=z='min(1+0.0009*on,1.16)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=360:s=${W}x${H}:fps=30`;
+  // Zoom lento: llega a 1.16 al final, dure lo que dure el clip
+  const cuadros = seg * 30;
+  const zoom = `zoompan=z='min(1+${(0.16 / cuadros).toFixed(6)}*on,1.16)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${cuadros}:s=${W}x${H}:fps=30`;
   const filtro = VERTICAL
     ? `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=30:3,eq=brightness=-0.08[fondo];[0:v]scale=${W}:-2[frente];[fondo][frente]overlay=(W-w)/2:(H-h)/2,${zoom},format=yuv420p`
     : `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},${zoom},format=yuv420p`;
-  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', img, '-filter_complex', filtro, '-t', '12', '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', mp4]);
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', img, '-filter_complex', filtro, '-t', String(seg), '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', mp4]);
 };
 
 // Gemini mira la imagen dibujada: si tiene letras o numeros inventados, se vuelve a dibujar
@@ -535,7 +537,8 @@ for (const toma of tomas) {
     const origen = path.join('public/propias', propia[1].trim());
     try {
       await fs.access(origen);
-      if (/\.(png|jpe?g|webp)$/i.test(origen)) fotoAVideo(origen, destino);
+      // Imagen propia: 30 s con zoom lento, para que alcance aunque la escena dure mucho (modo historia)
+      if (/\.(png|jpe?g|webp)$/i.test(origen)) imagenIAaVideo(origen, destino, 30);
       else await fs.copyFile(origen, destino);
       listos.push(destino);
       console.log(`✓ ${toma.clip} ← imagen propia ${propia[1].trim()}`);
