@@ -194,7 +194,12 @@ REGLAS DEL GUION:
   3. El mecanismo paso a paso: causa y efecto, contado con una comparación de la vida diaria.
   4. Al menos UN dato concreto que venga en el tema o en las notas: un nombre técnico o un hecho. Si no viene ningún número en el tema o en las notas, NO inventes números.
   5. La consecuencia práctica para el espectador: qué hacer o qué evitar.
-  6. Cierre: una frase COMPLETA, de 8 a 14 palabras, que conecte con el gancho y deje una idea clara para recordar. Puede empezar con La próxima vez que, pero solo si queda natural; en ese caso debe decir qué va a pasar o qué va a recordar el espectador (por ejemplo: La próxima vez que veas X, recuerda que Y). Nunca dejes la frase a medias.
+  6. Remate: UNA frase completa, de 6 a 14 palabras, que le RESPONDA al gancho con la idea principal del video, como una regla fácil de recordar. Debe sonar a final: firme, sin dudas y sin dar dos opciones con "o" que se contradigan. No agregues datos nuevos ni consejos nuevos en el remate.
+     Ejemplo malo (gancho sobre el pan en la nevera): "Mejor guárdalo en el congelador o déjalo afuera."
+     Ejemplo bueno: "Nevera no: el pan de hoy, afuera; el de la semana, al congelador."
+     Ejemplo malo: "Así que ten cuidado con eso."  Ejemplo bueno: "Tu nevera no gasta gas: si le falta, tiene una fuga."
+  7. Si el productor pide un cierre con pregunta al espectador, va DESPUÉS del remate, como última frase: corta (máximo 10 palabras), directa y sobre la costumbre del espectador (por ejemplo: "¿Y tú, dónde guardas el pan?"). Si el productor no pide pregunta, el remate es la última frase.
+  Antes de responder, lee el guion de corrido: el final tiene que sonar como el cierre lógico de lo que se dijo al principio. Si no, reescríbelo.
 - Frases cortas, máximo 15 palabras cada una. La respuesta a lo que promete el gancho debe llegar en la primera mitad del guion, no al final. La escena y el cierre no pueden quitarle espacio a la explicación: si falta espacio, acorta la escena, nunca el mecanismo ni el dato.
 - Español neutro de Latinoamérica. Si el objeto tiene nombres distintos por país, menciona dos (por ejemplo: foco o bombillo, llave o grifo).
 - Escribe los números en letras (cincuenta grados, no 50 grados).
@@ -522,7 +527,8 @@ console.log(`ULTIMA: ${frases[frases.length - 1].trim()}`);
 const LARGO = RETO ? 95 : MIENTRAS ? 65 : 60;
 console.log(`PALABRAS: ${palabras}${palabras > LARGO ? ' (AVISO: largo)' : ''}${palabras < (MIENTRAS ? 30 : 36) ? ' (AVISO: corto)' : ''}`);
 const ultima = frases[frases.length - 1].trim();
-if (!RETO && !MIENTRAS && ultima.split(/\s+/).length < 8) console.log('AVISO: la última frase es muy corta, revisa que el cierre no haya quedado a medias');
+if (!RETO && !MIENTRAS && !/\?$/.test(ultima) && ultima.split(/\s+/).length < 6) console.log('AVISO: la última frase es muy corta, revisa que el cierre no haya quedado a medias');
+if (!RETO && !MIENTRAS && /pregúntale al espectador|preguntale al espectador/i.test(TEMA) && !/\?$/.test(ultima)) console.log('AVISO: el tema pedía terminar con una pregunta al espectador y el guion no termina en pregunta');
 
 // Busquedas especiales del productor (DIBUJAR: y PROPIA:): si la IA no las puso, se ponen aqui.
 // Primero van a las tomas donde la IA dejo la busqueda vacia; si no, a la toma mas cercana
