@@ -6,7 +6,7 @@
 [x] Por qué los aviones pueden volar siendo tan pesados
 [x] Cómo llega la electricidad desde la planta hasta tu enchufe
 [x] Cómo funciona el alcantarillado de una ciudad
-Por qué los edificios no se hunden en el suelo
+[x] Por qué los edificios no se hunden en el suelo
 Cómo se construye un túnel bajo una montaña
 Cómo funciona una presa hidroeléctrica
 Qué pasa dentro de tu celular cuando haces una llamada
