@@ -271,7 +271,7 @@ const PlantillaMito = ({mito, verdad, dur}: {mito: string; verdad: string; dur: 
     background: 'rgba(255,255,255,0.07)',
     borderRadius: 32,
     padding: vertical ? '44px 46px' : '30px 40px',
-    width: vertical ? '84%' : '70%',
+    width: vertical ? '84%' : '38%',
     position: 'relative' as const,
     boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
   };
@@ -313,7 +313,7 @@ const PlantillaMito = ({mito, verdad, dur}: {mito: string; verdad: string; dur: 
       <Invi pose="sorpresa" size={300} desde={6} hasta={tVerdad - 8} style={{left: 10, bottom: vertical ? '27%' : '6%'}} />
       <Invi pose="pulgar" size={300} desde={tVerdad} style={{left: 10, bottom: vertical ? '27%' : '6%'}} />
       <AbsoluteFill style={{background: `radial-gradient(circle at 50% 30%, rgba(245,196,0,${0.10 + 0.06 * brillo}) 0%, transparent 55%)`}} />
-      <AbsoluteFill style={{alignItems: 'center', justifyContent: vertical ? 'flex-start' : 'center', paddingTop: vertical ? '16%' : 0, gap: vertical ? 70 : 34, flexDirection: vertical ? 'column' : 'row'}}>
+      <AbsoluteFill style={{alignItems: 'center', justifyContent: vertical ? 'flex-start' : 'center', paddingTop: vertical ? '16%' : 0, paddingLeft: vertical ? 0 : 280, gap: vertical ? 70 : 60, flexDirection: vertical ? 'column' : 'row'}}>
         <div style={{...tarjeta, opacity: Math.min(1, entraMito) * apagaMito, transform: `translateY(${(1 - entraMito) * -80}px) scale(${0.9 + 0.1 * entraMito})`}}>
           <div style={pastilla(ROJO_MITO)}>MITO</div>
           <div style={{position: 'relative', color: '#fff', fontWeight: 900, fontSize: tamTexto(mito, base), lineHeight: 1.18}}>
