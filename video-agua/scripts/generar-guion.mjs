@@ -19,6 +19,14 @@ const TOMAS_MAX = Math.round((MINUTOS * 60) / 11);
 const CLIPS_DISTINTOS = `${Math.round(TOMAS_MIN * 0.5)} y ${Math.round(TOMAS_MAX * 0.6)}`;
 console.log(`DURACION: unos ${MINUTOS} minutos (${MIN_PALABRAS} a ${MAX_PALABRAS} palabras)${DOCUMENTAL ? ', estilo documental' : ''}`);
 
+// Plantillas animadas automaticas (mito, lista, si/no, pasos, calculo): la IA las pone
+// sola en los momentos clave del guion, una por seccion. Se apagan con PLANTILLAS_AUTO=no.
+// Si el productor pide una plantilla en el tema, esa se respeta igual.
+const PLANTILLAS_AUTO = (process.env.PLANTILLAS_AUTO ?? 'si').toLowerCase() !== 'no';
+const PIDE_PLANTILLA = /plantilla/i.test(TEMA);
+const MAX_PLANTILLAS = Math.max(3, Math.min(6, Math.round(MINUTOS * 0.6)));
+console.log(PLANTILLAS_AUTO ? `Plantillas animadas automáticas: encendidas (hasta ${MAX_PLANTILLAS})` : 'Plantillas animadas automáticas: apagadas');
+
 // Primero los dos Gemini; si los dos se quedan sin cupo, Groq como respaldo
 const MODELOS = ['gemini-3.6-flash', 'gemini-2.5-flash'];
 if (GROQ) MODELOS.push('groq:openai/gpt-oss-120b', 'groq:qwen/qwen3.6-27b', 'groq:openai/gpt-oss-20b');
@@ -249,8 +257,20 @@ REGLAS:
 - seccion: solo en la primera toma de cada parte del guion; tantas secciones como partes tenga (normalmente de 4 a 6), con 2 o 3 palabras y ortografía perfecta. NUNCA una sección llamada Introducción. En las demás tomas, omite el campo.
 - etiquetas: máximo 1 por toma, máximo 4 palabras, y solo en 5 o 6 tomas de todo el video.
 - La última toma lleva la etiqueta "Próximo video".
-- plantilla: SOLO si el productor lo pide en el tema. Copia el campo "plantilla" EXACTAMENTE como lo escribió el productor, en la toma que él indicó, y esa toma va sin etiquetas. Si no lo pide, no pongas este campo.
-
+${PLANTILLAS_AUTO ? `- plantilla: ${PIDE_PLANTILLA ? 'primero, si el productor pidió una plantilla en el tema, cópiala EXACTA en la toma que él indicó. Además, ' : ''}pon tú pantallas animadas en los momentos clave, para que el video no se sienta largo:
+  * Hasta ${MAX_PLANTILLAS} en todo el video, MÁXIMO UNA por sección (lo ideal es una en casi cada sección). Nunca en la primera toma ni en la última. Entre una y otra, deja varias tomas de video normal.
+  * Ponla en la toma donde la voz dice exactamente ese contenido, y esa toma va sin etiquetas.
+  * Elige el tipo según lo que dice la voz en esa toma:
+    - "mito": la voz desmiente una creencia común. {"tipo":"mito","mito":"la creencia falsa, máximo 8 palabras","verdad":"lo cierto, máximo 8 palabras"}
+    - "lista": la voz nombra 3 o 4 datos, señales o ejemplos seguidos. {"tipo":"lista","titulo":"2 a 4 palabras","items":[{"texto":"máximo 5 palabras","cuando":"fragmento exacto del guion donde la voz lo dice"}]}
+    - "sino": la voz da consejos de qué hacer y qué no. {"tipo":"sino","titulo":"2 a 4 palabras","si":[{"texto":"máximo 5 palabras","cuando":"fragmento exacto"}],"no":[{"texto":"máximo 5 palabras","cuando":"fragmento exacto"}]}
+    - "pasos": la voz explica un proceso en orden, de 3 o 4 pasos. {"tipo":"pasos","titulo":"2 a 4 palabras","items":[{"texto":"máximo 4 palabras","nota":"detalle de máximo 6 palabras","cuando":"fragmento exacto"}]}
+    - "calculo": la voz hace una cuenta con números. {"tipo":"calculo","titulo":"2 a 4 palabras","items":[{"texto":"el valor con su unidad, por ejemplo 1.085 W","nota":"qué es, máximo 3 palabras","op":"signo que va antes (×, ÷, +, −), vacío en el primero","cuando":"fragmento exacto"}],"resultado":"el total con su unidad","cuandoResultado":"fragmento exacto"}
+  * TODO el contenido sale de lo que dice el guion: los mismos datos y los mismos números, nada inventado. Si en una sección no hay un mito, una lista, consejos, pasos o una cuenta clara, esa sección va sin plantilla.
+  * "cuando" y "cuandoResultado": fragmento EXACTO del guion, de 3 a 6 palabras seguidas, dentro de lo que dice la voz en esa toma, en orden.
+  * Ortografía perfecta, con tildes. Textos cortos: en pantalla se leen en un segundo.
+` : `- plantilla: SOLO si el productor lo pide en el tema. Copia el campo "plantilla" EXACTAMENTE como lo escribió el productor, en la toma que él indicó, y esa toma va sin etiquetas. Si no lo pide, no pongas este campo.
+`}
 REGLA CRÍTICA DEL CAMPO "desde":
 - La primera toma lleva desde: ""
 - CADA toma siguiente DEBE llevar en "desde" un fragmento EXACTO y literal del guion de arriba, copiado tal cual, de 4 a 7 palabras seguidas.
@@ -327,6 +347,83 @@ plan.forEach((toma, i) => {
   }
 });
 console.log(`ANCLAJE: ${ancladas} tomas ancladas a una frase exacta del guion, ${sinAncla} sin anclar (se reparten por tiempo).`);
+
+// ---------- Plantillas animadas: revision ----------
+// Se quita toda plantilla mal armada (queda el clip normal), y se respetan los limites:
+// ninguna en la primera ni en la ultima toma, maximo una por seccion, con espacio entre ellas.
+{
+  const corto = (t, n) => typeof t === 'string' && t.trim() && t.trim().split(/\s+/).length <= n;
+  const enGuion = (f) => !!f && guionNorm2.includes(norm2(f));
+  const norm2 = (s) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const guionNorm2 = norm2(guion);
+  const limpiarItems = (lista, max) => (Array.isArray(lista) ? lista : [])
+    .map((it) => (typeof it === 'string' ? {texto: it} : it))
+    .filter((it) => it && corto(it.texto, max))
+    .map((it) => {
+      const o = {texto: String(it.texto).trim()};
+      if (it.nota && corto(it.nota, 8)) o.nota = String(it.nota).trim();
+      if (typeof it.op === 'string') o.op = it.op.trim();
+      if (enGuion(it.cuando)) o.cuando = String(it.cuando).trim();
+      return o;
+    });
+  const revisar = (p) => {
+    if (!p || typeof p !== 'object') return null;
+    const titulo = corto(p.titulo, 5) ? String(p.titulo).trim() : undefined;
+    if (p.tipo === 'mito') return corto(p.mito, 12) && corto(p.verdad, 12) ? {tipo: 'mito', mito: p.mito.trim(), verdad: p.verdad.trim()} : null;
+    if (p.tipo === 'lista') {
+      const items = limpiarItems(p.items, 7).slice(0, 5);
+      return items.length >= 2 ? {tipo: 'lista', ...(titulo ? {titulo} : {}), items} : null;
+    }
+    if (p.tipo === 'pasos') {
+      const items = limpiarItems(p.items, 6).slice(0, 5);
+      return items.length >= 2 ? {tipo: 'pasos', ...(titulo ? {titulo} : {}), items} : null;
+    }
+    if (p.tipo === 'sino') {
+      const si = limpiarItems(p.si, 7).slice(0, 3);
+      const no = limpiarItems(p.no, 7).slice(0, 3);
+      return si.length + no.length >= 2 ? {tipo: 'sino', ...(titulo ? {titulo} : {}), si, no} : null;
+    }
+    if (p.tipo === 'calculo') {
+      const items = limpiarItems(p.items, 6).filter((it) => /\d/.test(it.texto)).slice(0, 4);
+      if (items.length < 2 || !(typeof p.resultado === 'string' && /\d/.test(p.resultado))) return null;
+      return {tipo: 'calculo', ...(titulo ? {titulo} : {}), items, resultado: p.resultado.trim(), ...(enGuion(p.cuandoResultado) ? {cuandoResultado: String(p.cuandoResultado).trim()} : {})};
+    }
+    if (['reto', 'clase'].includes(p.tipo) && PIDE_PLANTILLA) return p; // las pide el productor: van tal cual
+    return null;
+  };
+  let seccion = 0;
+  const usadaEnSeccion = new Set();
+  let ultimaPos = -99;
+  const separacion = Math.max(2, Math.round(plan.length / 12)); // tomas minimas entre una plantilla y otra
+  const puestas = [];
+  plan.forEach((toma, i) => {
+    if (toma.seccion) seccion++;
+    if (!toma.plantilla) return;
+    const original = toma.plantilla;
+    const p = revisar(original);
+    let motivo = '';
+    if (!p) motivo = 'mal armada';
+    else if (i === 0 || i === plan.length - 1) motivo = 'en la primera o la última toma';
+    else if (usadaEnSeccion.has(seccion)) motivo = 'ya hay una en esa sección';
+    else if (i - ultimaPos < separacion) motivo = 'muy pegada a la anterior';
+    else if (puestas.length >= MAX_PLANTILLAS) motivo = 'ya hay suficientes';
+    if (motivo) {
+      console.log(`  plantilla quitada en la toma ${i + 1} (${original?.tipo ?? '?'}): ${motivo}`);
+      delete toma.plantilla;
+      return;
+    }
+    toma.plantilla = p;
+    toma.etiquetas = [];
+    usadaEnSeccion.add(seccion);
+    ultimaPos = i;
+    puestas.push(`${i + 1}:${p.tipo}`);
+  });
+  console.log(`PLANTILLAS ANIMADAS: ${puestas.length}${puestas.length ? ` (${puestas.join(', ')})` : ''}`);
+  plan.forEach((toma, i) => {
+    if (toma.plantilla) console.log(`  toma ${i + 1} [${toma.plantilla.tipo}]: ${JSON.stringify(toma.plantilla).slice(0, 220)}`);
+  });
+  if (PLANTILLAS_AUTO && puestas.length < 2) console.log('AVISO: el video quedó con pocas plantillas animadas.');
+}
 
 // ---------- Controles ----------
 
