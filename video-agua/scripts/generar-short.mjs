@@ -80,6 +80,17 @@ const MIENTRAS_INICIO = 'Mientras ves esto, pon atención: esto te puede salvar.
 const MIENTRAS_REGLA = MIENTRAS ? `Así que nunca ${MIENTRAS.nunca}. ${mayuscula(MIENTRAS.haz)}. Ahora ya lo sabes.` : '';
 if (MIENTRAS) console.log(`MODO MIENTRAS: nunca "${MIENTRAS.nunca}" / haz "${MIENTRAS.haz}"`);
 
+// Imagenes del video (IMAGENES): alternado = clips reales en las escenas generales y
+// dibujos en las explicaciones (por defecto); dibujado = todo dibujado; clips = solo clips.
+const IMAGENES = ['alternado', 'dibujado', 'clips'].includes((process.env.IMAGENES ?? '').trim().toLowerCase()) ? process.env.IMAGENES.trim().toLowerCase() : 'alternado';
+const COMO_DIBUJAR = 'Después de "DIBUJAR: " describe en inglés la escena EXACTA que dice la voz: los objetos concretos, la acción, de quién son las manos y el ángulo de cámara (por ejemplo: close up of a hand pulling an adjustable wrench toward its fixed jaw on a nut, a glowing arrow showing the direction). No pidas letras, números, marcas ni logos: el sistema ya dibuja sin letras.';
+const REGLA_IMAGENES = IMAGENES === 'dibujado'
+  ? `- TODO DIBUJADO: en TODAS las tomas, "buscar" empieza con "DIBUJAR: ". ${COMO_DIBUJAR} Mantén los mismos objetos, colores y lugar de una toma a otra para que se vea como una sola historia.`
+  : IMAGENES === 'alternado'
+    ? `- IMÁGENES ALTERNADAS: decide toma por toma. Si la voz describe una escena general que seguro existe en video real (una persona usando un objeto común, una mano abriendo algo, un lugar de la casa, la calle), usa una búsqueda normal en inglés. Si la voz explica un detalle específico, un mecanismo, lo que pasa por dentro de un aparato, una dirección, una medida o una comparación que difícilmente existe en un video real, usa "DIBUJAR: ". ${COMO_DIBUJAR} Más o menos la mitad de las tomas van con DIBUJAR.`
+    : '- Usa solo búsquedas normales de video, sin DIBUJAR, salvo las que dio el productor.';
+console.log(`IMÁGENES: ${IMAGENES}`);
+
 // La investigacion con Google gasta cupo de Gemini. Solo se hace si el tema
 // dice INVESTIGAR, porque los temas normales ya traen toda la explicacion.
 const INVESTIGAR = /\bINVESTIGAR\b/.test(TEMA) || (process.env.INVESTIGAR ?? '').toLowerCase() === 'si';
@@ -212,6 +223,7 @@ REGLAS DEL PLAN DE TOMAS:
 - "desde": frase EXACTA de 3 a 6 palabras copiada del guion donde empieza esa toma. La primera toma lleva "desde": "".
 - "clip": nombre único en español con guiones, terminado en .mp4 (por ejemplo cable-caliente.mp4).
 - "buscar": búsqueda en INGLÉS para video de stock que muestre EXACTAMENTE la acción que dice la voz en esa toma, con quién la hace y sobre qué objeto: verbo + objeto + detalle. Si la voz dice "abres la puerta del microondas", buscar "person opening microwave door"; si dice "conectas el cargador", buscar "hand plugging charger into outlet". Nunca solo el objeto quieto ni algo abstracto como "danger". Si el productor dio búsquedas, úsalas; si una empieza con DIBUJAR: o PROPIA:, cópiala EXACTA, con ese prefijo, en la toma que le corresponde. NUNCA uses subscribe, thank you, intro, outro, youtube ni texto.
+${REGLA_IMAGENES}
 - "etiquetas": lista con 0 o 1 etiqueta por toma: {"texto": "máximo 3 palabras", "cuando": "frase exacta del guion"}.
 - "plantilla": SOLO si el productor lo pide en el tema. Copia el campo "plantilla" EXACTAMENTE como lo escribió el productor, en la toma que él indicó, y esa toma va sin etiquetas. Si el productor no pide plantilla, no pongas este campo.
 
@@ -248,6 +260,7 @@ REGLAS DEL PLAN DE TOMAS (solo para la explicación):
 - "desde": frase EXACTA de 3 a 6 palabras copiada de la explicación donde empieza esa toma. La primera toma lleva "desde": "".
 - "clip": nombre único en español con guiones, terminado en .mp4.
 - "buscar": búsqueda en INGLÉS para video de stock que muestre EXACTAMENTE la acción u objeto que dice la voz: verbo + objeto + detalle (por ejemplo "person opening refrigerator door"). Si el productor dio búsquedas, úsalas; si una empieza con DIBUJAR: o PROPIA:, cópiala EXACTA, con ese prefijo, en la toma que le corresponde. Nunca subscribe, thank you, intro, outro, youtube ni texto.
+${REGLA_IMAGENES}
 - "etiquetas": lista con 0 o 1 etiqueta por toma: {"texto": "máximo 3 palabras", "cuando": "frase exacta de la explicación"}.
 
 Responde SOLO con este JSON:
@@ -281,6 +294,7 @@ REGLAS DEL PLAN DE TOMAS:
 - "desde": frase EXACTA de 3 a 6 palabras copiada de TU texto donde empieza esa toma. La primera toma lleva "desde": "".
 - "clip": nombre único en español con guiones, terminado en .mp4.
 - "buscar": búsqueda en INGLÉS que muestre EXACTAMENTE la escena del peligro, con acción: verbo + objeto + detalle (por ejemplo "oil pan catching fire on stove"). Si el productor dio búsquedas, úsalas; si una empieza con DIBUJAR: o PROPIA:, cópiala EXACTA, con ese prefijo, en la toma que le corresponde. Nunca subscribe, thank you, intro, outro, youtube ni texto.
+${REGLA_IMAGENES}
 - "etiquetas": siempre lista vacía [].
 
 Responde SOLO con este JSON:
@@ -584,4 +598,5 @@ await fs.writeFile('public/guion.txt', guion, 'utf8');
 await fs.writeFile('public/plan.json', JSON.stringify(plan, null, 2), 'utf8');
 console.log(`Plan: ${plan.length} tomas`);
 plan.forEach((t, i) => console.log(`  ${i + 1}. ${t.clip} <- "${t.buscar}"${t.desde ? ` desde "${t.desde}"` : ''}${t.plantilla ? ` [PLANTILLA ${t.plantilla.tipo}]` : ''}`));
+console.log(`DIBUJOS EN EL PLAN: ${plan.filter((t) => !t.plantilla && /^DIBUJAR:/i.test(t.buscar)).length} de ${plan.filter((t) => !t.plantilla).length} tomas`);
 console.log('Listo.');
