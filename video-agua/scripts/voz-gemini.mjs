@@ -22,6 +22,10 @@ const MODELOS = ['gemini-3.1-flash-tts-preview', 'gemini-3.8-flash-tts', 'gemini
 // Sin instrucciones: Gemini a veces las leia en voz alta. Solo se manda el texto.
 // (Si algun dia se quiere probar un estilo, se pone en GEMINI_ESTILO.)
 const ESTILO = (process.env.GEMINI_ESTILO ?? '').trim();
+// Idioma de la voz: sin esto Gemini adivina el idioma y a veces sale con acento de España.
+// es-US = español latino neutro, que se entiende en todos los países (se cambia con GEMINI_IDIOMA).
+// Si un modelo no acepta el idioma, se pide sin él.
+let IDIOMA = (process.env.GEMINI_IDIOMA ?? 'es-US').trim();
 const PALABRAS_POR_PEDAZO = Number(process.env.VOZ_PALABRAS_PEDAZO) || 150;
 const MINUTOS_MAX = Number(process.env.VOZ_MINUTOS_MAX) || 15;
 const RATE = 24000;
@@ -48,7 +52,7 @@ for (const f of frases) {
 }
 if (actual) pedazos.push(actual);
 
-console.log(`Voz de Gemini: ${VOZ} (${guion.split(' ').length} palabras en ${pedazos.length} pedazo(s))`);
+console.log(`Voz de Gemini: ${VOZ}, idioma ${IDIOMA || 'automático'} (${guion.split(' ').length} palabras en ${pedazos.length} pedazo(s))`);
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const limite = Date.now() + MINUTOS_MAX * 60 * 1000;
@@ -75,7 +79,7 @@ async function vozDe(texto, n) {
             contents: [{parts: [{text: ESTILO ? `${ESTILO}\n\nTEXTO:\n${texto}` : texto}]}],
             generationConfig: {
               responseModalities: ['AUDIO'],
-              speechConfig: {voiceConfig: {prebuiltVoiceConfig: {voiceName: VOZ}}},
+              speechConfig: {voiceConfig: {prebuiltVoiceConfig: {voiceName: VOZ}}, ...(IDIOMA ? {languageCode: IDIOMA} : {})},
             },
           }),
         });
@@ -86,7 +90,13 @@ async function vozDe(texto, n) {
         continue;
       }
       if (res.status === 404 || res.status === 400) {
-        console.log(`  ${modelo} no disponible (${res.status}): ${(await res.text()).replace(/\s+/g, ' ').slice(0, 160)}`);
+        const msg = (await res.text()).replace(/\s+/g, ' ');
+        if (res.status === 400 && IDIOMA && /language/i.test(msg)) {
+          console.log(`  ${modelo} no acepta el idioma ${IDIOMA}, lo pido sin idioma`);
+          IDIOMA = '';
+          continue;
+        }
+        console.log(`  ${modelo} no disponible (${res.status}): ${msg.slice(0, 160)}`);
         break;
       }
       if (res.status === 429) {
