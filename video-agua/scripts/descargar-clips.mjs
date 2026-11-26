@@ -313,7 +313,9 @@ const fotoAVideo = (jpg, mp4) => {
 const CF_CUENTA = (process.env.CF_ACCOUNT_ID ?? '').trim();
 const CF_TOKEN = (process.env.CF_API_TOKEN ?? '').trim();
 const DIBUJAR = (process.env.CLIPS_DIBUJAR ?? 'si').toLowerCase() !== 'no' && (!!(CF_CUENTA && CF_TOKEN) || !!GEMINI);
-const MAX_DIBUJOS = Number(process.env.CLIPS_MAX_DIBUJOS ?? 6) || 6;
+// Cuantos dibujos se permiten por video: depende del modo de imagenes del workflow
+const MODO_IMAGENES = (process.env.CLIPS_IMAGENES ?? 'mixto').trim().toLowerCase();
+const MAX_DIBUJOS = Number(process.env.CLIPS_MAX_DIBUJOS) || (MODO_IMAGENES === 'dibujado' ? 40 : MODO_IMAGENES === 'alternado' ? 24 : 6);
 const MODELOS_CF = ['@cf/black-forest-labs/flux-1-schnell', '@cf/bytedance/stable-diffusion-xl-lightning'];
 const MODELOS_DIBUJO_GEMINI = ['gemini-2.5-flash-image', 'gemini-2.0-flash-preview-image-generation'];
 // Estilo de las imagenes dibujadas (CLIPS_ESTILO_DIBUJO): 3d = como pelicula animada, igual
@@ -337,7 +339,7 @@ const limpiarDescripcion = (d) =>
 const cuentaDibujos = {cf: 0, gemini: 0, fallos: 0};
 let cfVivo = !!(CF_CUENTA && CF_TOKEN);
 let geminiDibujaVivo = !!GEMINI;
-console.log(DIBUJAR ? `Dibujo con IA: encendido (${cfVivo ? 'Cloudflare' : ''}${cfVivo && geminiDibujaVivo ? ' + ' : ''}${geminiDibujaVivo ? 'Gemini' : ''}, hasta ${MAX_DIBUJOS} por video, estilo ${ESTILO_ELEGIDO})` : 'Dibujo con IA: apagado');
+console.log(DIBUJAR ? `Dibujo con IA: encendido, modo ${MODO_IMAGENES} (${cfVivo ? 'Cloudflare' : ''}${cfVivo && geminiDibujaVivo ? ' + ' : ''}${geminiDibujaVivo ? 'Gemini' : ''}, hasta ${MAX_DIBUJOS} por video, estilo ${ESTILO_ELEGIDO})` : 'Dibujo con IA: apagado');
 
 // Corta la espera si el servicio no responde (sin dejar el programa esperando al final)
 const conTiempo = (ms) => AbortSignal.timeout(ms);
@@ -476,7 +478,8 @@ const dibujarToma = async (descripcion, frase, destino, nombre) => {
     await fs.mkdir('public/fotos-tmp', {recursive: true});
     const img = path.join('public/fotos-tmp', `ia-${nombre}.img`);
     await fs.writeFile(img, buf);
-    imagenIAaVideo(img, destino);
+    // En los largos cada toma dura hasta 15 s: el dibujo dura 20 s para que el zoom no se repita
+    imagenIAaVideo(img, destino, VERTICAL ? 12 : 20);
     cuentaDibujos[quien]++;
     return true;
   } catch (e) {
