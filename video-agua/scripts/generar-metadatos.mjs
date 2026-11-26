@@ -19,7 +19,10 @@ try {
 }
 
 const temaCorto = TEMA.split('(')[0].split('OBLIGATORIO')[0].trim();
-const maxTitulo = TIPO === 'short' ? 50 : 70;
+const maxTitulo = TIPO === 'short' ? 60 : 70;
+// Si el tema trae "TÍTULO: ..." se usa ese titulo exacto (el que viene investigado con el tema)
+const TITULO_PEDIDO = (TEMA.match(/T[IÍ]TULO:\s*(.+?)(?=\s+(?:La primera frase|B[uú]squedas de clips|Cierre:|Remate sugerido:|OBLIGATORIO)|$)/i)?.[1] ?? '').trim().replace(/[.;]+$/, '');
+if (TITULO_PEDIDO) console.log(`Título pedido en el tema: ${TITULO_PEDIDO}`);
 
 const prompt = `Eres el editor del canal de YouTube "Ingeniería Invisible", que explica en español cómo funcionan, y cuándo son peligrosas, las cosas que la gente usa todos los días. El público es de todos los países hispanohablantes.
 
@@ -30,12 +33,15 @@ TEMA: ${temaCorto}
 GUION:
 ${guion}
 
-REGLAS DEL TÍTULO:
-- Una pregunta que la gente se haría, con signos ¿ ? a los dos lados.
-- Mayúscula inicial y ortografía perfecta, con todas las tildes (qué, por qué, cómo, dónde, está, también).
-- Máximo ${maxTitulo} caracteres. Mientras más corto, mejor.
-- Palabras que se entiendan en cualquier país hispanohablante.
-- Sin emojis, sin hashtags, sin palabras en mayúscula sostenida y sin prometer algo que el video no cumpla.
+REGLAS DEL TÍTULO (lo más importante: que den ganas de verlo):
+- Escribe 3 títulos distintos en "opciones" y pon en "titulo" el que tenga más gancho.
+- El gancho sale de lo MÁS SORPRENDENTE del guion: el giro, la alarma, el error que casi todos cometen o el dato que nadie sabe. No resumas el tema en general.
+- Háblale al espectador (tu, tú) o a su costumbre: "¿Le sale agua a tu AIRE? Si es ADENTRO, es una alarma", "Tú, el que guarda el pan en la NEVERA: lo estás dañando".
+- Puedes poner 1 o 2 palabras clave en MAYÚSCULA y 1 emoji al final. No más.
+- Puede ser pregunta o afirmación. Si es pregunta, con ¿ ? a los dos lados.
+- MALO (genérico): "¿Por qué el aire acondicionado gotea?". BUENO: "¿Tu AIRE gotea por dentro? Eso NO es normal 💧".
+- Ortografía perfecta, con todas las tildes. Máximo ${maxTitulo} caracteres.
+- Nunca prometas algo que el video no dice, y nada de "no lo vas a creer", "increíble" ni "impactante".
 
 REGLAS DE LA DESCRIPCIÓN:
 - 2 o 3 frases cortas que resuman la respuesta y den ganas de ver el video.
@@ -54,7 +60,7 @@ REGLAS DE LAS ETIQUETAS:
 - Ninguna etiqueta puede tener comas por dentro.
 
 Responde SOLO con este JSON:
-{"titulo": "...", "descripcion": "...", "hashtags": ["#...", "#..."], "etiquetas": ["...", "..."]}`;
+{"opciones": ["...", "...", "..."], "titulo": "el mejor de los tres", "descripcion": "...", "hashtags": ["#...", "#..."], "etiquetas": ["...", "..."]}`;
 
 // Primero los dos Gemini; si los dos se quedan sin cupo, Groq como respaldo
 const MODELOS = KEY ? ['gemini-3.6-flash', 'gemini-2.5-flash'] : [];
@@ -139,7 +145,11 @@ if (!meta) {
   process.exit(0);
 }
 
-let titulo = String(meta.titulo).trim();
+let titulo = TITULO_PEDIDO || String(meta.titulo).trim();
+if (!TITULO_PEDIDO && Array.isArray(meta.opciones)) {
+  console.log('Opciones de título que escribió la IA:');
+  meta.opciones.forEach((o) => console.log(`  - ${o}`));
+}
 if (titulo.endsWith('?') && !titulo.startsWith('¿')) titulo = '¿' + titulo;
 if (titulo.length > maxTitulo) console.log(`AVISO: el título tiene ${titulo.length} caracteres, revísalo`);
 
@@ -163,7 +173,8 @@ for (const e of Array.isArray(meta.etiquetas) ? meta.etiquetas : []) {
 }
 const etiquetas = etiquetasLista.join(', ');
 
-const salida = `TITULO:\n${titulo}\n\nDESCRIPCION:\n${String(meta.descripcion).trim()}\n\n${hashtags}\n\nETIQUETAS:\n${etiquetas}\n`;
+const otras = !TITULO_PEDIDO && Array.isArray(meta.opciones) ? meta.opciones.map((o) => String(o).trim()).filter((o) => o && o !== titulo) : [];
+const salida = `TITULO:\n${titulo}\n${otras.length ? `\nOTROS TÍTULOS:\n${otras.join('\n')}\n` : ''}\nDESCRIPCION:\n${String(meta.descripcion).trim()}\n\n${hashtags}\n\nETIQUETAS:\n${etiquetas}\n`;
 
 await fs.mkdir('out', {recursive: true});
 await fs.writeFile('out/metadatos.txt', salida);
