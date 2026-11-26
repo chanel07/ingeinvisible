@@ -27,6 +27,17 @@ const PIDE_PLANTILLA = /plantilla/i.test(TEMA);
 const MAX_PLANTILLAS = Math.max(3, Math.min(6, Math.round(MINUTOS * 0.6)));
 console.log(PLANTILLAS_AUTO ? `Plantillas animadas automáticas: encendidas (hasta ${MAX_PLANTILLAS})` : 'Plantillas animadas automáticas: apagadas');
 
+// Imagenes del video (IMAGENES): alternado = clips reales en las escenas generales y
+// dibujos en las explicaciones (por defecto); dibujado = todo dibujado; clips = solo clips.
+const IMAGENES = ['alternado', 'dibujado', 'clips'].includes((process.env.IMAGENES ?? '').trim().toLowerCase()) ? process.env.IMAGENES.trim().toLowerCase() : 'alternado';
+const COMO_DIBUJAR = 'Después de "DIBUJAR: " describe en inglés la escena EXACTA que dice la voz: los objetos concretos, la acción, de quién son las manos y el ángulo de cámara (por ejemplo: close up of a hand pulling an adjustable wrench toward its fixed jaw on a nut, a glowing arrow showing the direction). No pidas letras, números, marcas ni logos: el sistema ya dibuja sin letras.';
+const REGLA_IMAGENES = IMAGENES === 'dibujado'
+  ? `- TODO DIBUJADO: en TODAS las tomas, "buscar" empieza con "DIBUJAR: ". ${COMO_DIBUJAR} Mantén los mismos objetos, colores y lugar de una toma a otra para que se vea como una sola historia.`
+  : IMAGENES === 'alternado'
+    ? `- IMÁGENES ALTERNADAS: decide toma por toma. Si la voz describe una escena general que seguro existe en video real (una persona usando un objeto común, una mano abriendo algo, un lugar de la casa, la calle), usa una búsqueda normal en inglés. Si la voz explica un detalle específico, un mecanismo, lo que pasa por dentro de un aparato, una dirección, una medida o una comparación que difícilmente existe en un video real, usa "DIBUJAR: ". ${COMO_DIBUJAR} Más o menos la mitad de las tomas van con DIBUJAR.`
+    : '- Usa solo búsquedas normales de video, sin DIBUJAR, salvo las que dio el productor.';
+console.log(`IMÁGENES: ${IMAGENES}`);
+
 // Primero los dos Gemini; si los dos se quedan sin cupo, Groq como respaldo
 const MODELOS = ['gemini-3.6-flash', 'gemini-2.5-flash'];
 if (GROQ) MODELOS.push('groq:openai/gpt-oss-120b', 'groq:qwen/qwen3.6-27b', 'groq:openai/gpt-oss-20b');
@@ -254,6 +265,7 @@ REGLAS:
 - clip: nombre descriptivo en español con guiones, terminado en .mp4
 - Puedes REPETIR el mismo archivo de clip en tomas distintas, pero no seguidas. Usa entre ${CLIPS_DISTINTOS} archivos distintos en total.
 - buscar: en INGLÉS, concreto y visual, de lo que se VE en ese momento: el objeto exacto que la voz nombra en esa toma (por ejemplo si la voz dice "la puerta del microondas", buscar "microwave door close up"; nunca algo abstracto como "safety" o "technology"). Si el productor dio búsquedas, úsalas. Evita palabras con doble sentido que traen clips de otra cosa (por ejemplo motor o compressor traen motores de carro; fan trae ventiladores): describe el objeto completo, como "wall mounted air conditioner" o "split air conditioner outdoor unit". Un archivo de clip siempre lleva la MISMA búsqueda. Nunca uses subscribe, thank you, end screen ni youtube.
+${REGLA_IMAGENES}${IMAGENES !== 'clips' ? ' Un mismo dibujo puede repetirse en dos tomas seguidas si la voz sigue hablando de lo mismo (mismo archivo de clip y misma búsqueda).' : ''}
 - seccion: solo en la primera toma de cada parte del guion; tantas secciones como partes tenga (normalmente de 4 a 6), con 2 o 3 palabras y ortografía perfecta. NUNCA una sección llamada Introducción. En las demás tomas, omite el campo.
 - etiquetas: máximo 1 por toma, máximo 4 palabras, y solo en 5 o 6 tomas de todo el video.
 - La última toma lleva la etiqueta "Próximo video".
@@ -346,6 +358,7 @@ plan.forEach((toma, i) => {
     sinAncla++;
   }
 });
+console.log(`DIBUJOS EN EL PLAN: ${new Set(plan.filter((t) => /^DIBUJAR:/i.test(String(t.buscar))).map((t) => t.clip)).size} dibujos distintos en ${plan.length} tomas`);
 console.log(`ANCLAJE: ${ancladas} tomas ancladas a una frase exacta del guion, ${sinAncla} sin anclar (se reparten por tiempo).`);
 
 // ---------- Plantillas animadas: revision ----------
