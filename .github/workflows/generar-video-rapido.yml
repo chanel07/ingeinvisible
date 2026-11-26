@@ -30,6 +30,15 @@ on:
         options:
           - '3d'
           - 'real'
+      imagenes:
+        description: 'Imágenes: alternado = clips reales + dibujos en las explicaciones; dibujado = todo dibujado; clips = solo clips'
+        required: false
+        type: choice
+        default: 'alternado'
+        options:
+          - 'alternado'
+          - 'dibujado'
+          - 'clips'
       evitar:
         description: 'Clips que NO deben salir, en inglés separados por coma (ej: car, engine, fan)'
         required: false
@@ -96,6 +105,7 @@ jobs:
           GROQ_KEY: ${{ secrets.GROQ_KEY }}
           TEMA: ${{ steps.tema.outputs.TEMA }}
           MINUTOS: ${{ inputs.minutos || '4' }}
+          IMAGENES: ${{ inputs.imagenes || 'alternado' }}
         run: node scripts/generar-guion.mjs
 
       - name: Limpiar guion y generar voz
@@ -184,6 +194,7 @@ jobs:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLIPS_ESTILO_DIBUJO: ${{ inputs.estilo || '3d' }}
+          CLIPS_IMAGENES: ${{ inputs.imagenes || 'alternado' }}
         run: rm -rf public/clips && node scripts/descargar-clips.mjs
 
       - name: Preparar clips
