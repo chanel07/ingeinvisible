@@ -20,8 +20,21 @@ try {
 
 const temaCorto = TEMA.split('(')[0].split('OBLIGATORIO')[0].trim();
 const maxTitulo = TIPO === 'short' ? 60 : 70;
-// Si el tema trae "TÍTULO: ..." se usa ese titulo exacto (el que viene investigado con el tema)
-const TITULO_PEDIDO = (TEMA.match(/T[IÍ]TULO:\s*(.+?)(?=\s+(?:La primera frase|B[uú]squedas de clips|Cierre:|Remate sugerido:|OBLIGATORIO)|$)/i)?.[1] ?? '').trim().replace(/[.;]+$/, '');
+// Si el tema trae "TÍTULO: ..." se usa ese titulo exacto (el que viene investigado con el tema).
+// El titulo termina donde empieza la siguiente parte del tema (Datos, Consejo, Cierre, La primera frase...).
+// Si aun asi sale muy largo (mas de 100 letras, el maximo de YouTube), se ignora y la IA escribe uno.
+const FIN_TITULO = /\s+(?:Datos(?:\s+verificados|\s+clave)?:|Consejos?:|Cierre:|La primera frase|B[uú]squedas de clips|Remate sugerido:|IM[AÁ]GENES EN ORDEN|OBLIGATORIO)/i;
+let TITULO_PEDIDO = '';
+const marcaTitulo = TEMA.match(/T[IÍ]TULO:\s*/i);
+if (marcaTitulo) {
+  const resto = TEMA.slice(marcaTitulo.index + marcaTitulo[0].length);
+  const fin = resto.search(FIN_TITULO);
+  TITULO_PEDIDO = (fin >= 0 ? resto.slice(0, fin) : resto).trim().replace(/[.;]+$/, '');
+  if (TITULO_PEDIDO.length > 100) {
+    console.log(`AVISO: el TÍTULO del tema salió de ${TITULO_PEDIDO.length} letras (no se encontró dónde termina); lo ignoro y la IA escribe uno`);
+    TITULO_PEDIDO = '';
+  }
+}
 if (TITULO_PEDIDO) console.log(`Título pedido en el tema: ${TITULO_PEDIDO}`);
 
 const prompt = `Eres el editor del canal de YouTube "Ingeniería Invisible", que explica en español cómo funcionan, y cuándo son peligrosas, las cosas que la gente usa todos los días. El público es de todos los países hispanohablantes.
