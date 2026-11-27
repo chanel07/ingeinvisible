@@ -227,7 +227,8 @@ const InviIntro = () => {
   );
 };
 
-// Final del video: Invi aprueba con un globo de texto que invita a seguir el canal
+// Final del video: Invi aprueba con un globo de texto que invita a seguir el canal.
+// En vertical va por encima de los subtitulos, para no tapar las ultimas palabras.
 const CierreInvi = () => {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
@@ -240,13 +241,13 @@ const CierreInvi = () => {
   const globo = spring({frame: frame - 6, fps, config: {damping: 11, stiffness: 160}});
   return (
     <AbsoluteFill>
-      <div style={{position: 'absolute', left: 0, right: 0, bottom: vertical ? (es3d ? '66%' : '62%') : (es3d ? '66%' : '61%'), display: 'flex', justifyContent: 'center', opacity: Math.min(1, Math.max(0, globo)), transform: `scale(${0.6 + 0.4 * Math.max(0, globo)})`}}>
+      <div style={{position: 'absolute', left: 0, right: 0, bottom: vertical ? (es3d ? '77%' : '73%') : (es3d ? '66%' : '61%'), display: 'flex', justifyContent: 'center', opacity: Math.min(1, Math.max(0, globo)), transform: `scale(${0.6 + 0.4 * Math.max(0, globo)})`}}>
         <div style={{position: 'relative', background: '#ffffff', color: '#10233a', fontWeight: 900, fontSize: 54, padding: '22px 40px', borderRadius: 40, border: '6px solid #10233a', boxShadow: '0 12px 30px rgba(0,0,0,0.45)', textAlign: 'center', maxWidth: '80%'}}>
           {CIERRE_INVI}
           <div style={{position: 'absolute', left: '50%', bottom: -34, width: 0, height: 0, borderLeft: '22px solid transparent', borderRight: '22px solid transparent', borderTop: '34px solid #10233a', transform: 'translateX(-50%)'}} />
         </div>
       </div>
-      <Invi pose="pulgar" size={tam} style={{left: `calc(50% - ${tamReal / 2}px)`, bottom: vertical ? '35%' : '20%'}} />
+      <Invi pose="pulgar" size={tam} style={{left: `calc(50% - ${tamReal / 2}px)`, bottom: vertical ? '46%' : '20%'}} />
     </AbsoluteFill>
   );
 };
@@ -515,7 +516,9 @@ const SimboloClase = ({letra, size}: {letra: string; size: number}) => {
       </text>
     </svg>
   );
-};// Extintor dibujado con codigo
+};
+
+// Extintor dibujado con codigo
 const Extintor = ({size}: {size: number}) => (
   <svg width={size} height={size * 1.4} viewBox="0 0 100 140" style={{filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.45))'}}>
     <path d="M58 22 Q86 24 86 52 L86 70" stroke="#111" strokeWidth="6" fill="none" strokeLinecap="round" />
@@ -1491,7 +1494,8 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
         </Sequence>
       )}
 
-      {PERSONAJE && (!TITULO || height > width) && (
+      {/* Con titulo grande al inicio el personaje no sale, para que no tape el titulo */}
+      {PERSONAJE && !TITULO && (
         <Sequence from={0} durationInFrames={Math.round(2.3 * fps)}>
           <InviIntro />
         </Sequence>
