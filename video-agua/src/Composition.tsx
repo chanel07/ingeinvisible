@@ -209,12 +209,19 @@ const Invi = ({pose, size, desde = 0, hasta, lado = 'izquierda', style}: {pose: 
   );
 };
 
+// Zona segura de los videos verticales (Reels y Shorts): Facebook, Instagram y YouTube tapan
+// el 35% de abajo con el nombre, la descripcion y los botones. Los subtitulos y el personaje
+// van por encima de esa zona. En los videos horizontales no hace falta.
+const SUB_VERTICAL = '36%';
+const PERSONAJE_VERTICAL = '47%';
+
 // Inicio del video: Invi saluda desde la izquierda y se va
 const InviIntro = () => {
-  const {fps} = useVideoConfig();
+  const {fps, width, height} = useVideoConfig();
+  const vertical = height > width;
   return (
     <>
-      <Invi pose="saludo" size={400} desde={2} hasta={Math.round(1.9 * fps)} style={{left: 20, bottom: '30%'}} />
+      <Invi pose="saludo" size={400} desde={2} hasta={Math.round(1.9 * fps)} style={{left: 20, bottom: vertical ? PERSONAJE_VERTICAL : '30%'}} />
       <Sfx src="pop.mp3" at={2} vol={0.2} />
     </>
   );
@@ -233,13 +240,13 @@ const CierreInvi = () => {
   const globo = spring({frame: frame - 6, fps, config: {damping: 11, stiffness: 160}});
   return (
     <AbsoluteFill>
-      <div style={{position: 'absolute', left: 0, right: 0, bottom: vertical ? (es3d ? '60%' : '56%') : (es3d ? '66%' : '61%'), display: 'flex', justifyContent: 'center', opacity: Math.min(1, Math.max(0, globo)), transform: `scale(${0.6 + 0.4 * Math.max(0, globo)})`}}>
+      <div style={{position: 'absolute', left: 0, right: 0, bottom: vertical ? (es3d ? '66%' : '62%') : (es3d ? '66%' : '61%'), display: 'flex', justifyContent: 'center', opacity: Math.min(1, Math.max(0, globo)), transform: `scale(${0.6 + 0.4 * Math.max(0, globo)})`}}>
         <div style={{position: 'relative', background: '#ffffff', color: '#10233a', fontWeight: 900, fontSize: 54, padding: '22px 40px', borderRadius: 40, border: '6px solid #10233a', boxShadow: '0 12px 30px rgba(0,0,0,0.45)', textAlign: 'center', maxWidth: '80%'}}>
           {CIERRE_INVI}
           <div style={{position: 'absolute', left: '50%', bottom: -34, width: 0, height: 0, borderLeft: '22px solid transparent', borderRight: '22px solid transparent', borderTop: '34px solid #10233a', transform: 'translateX(-50%)'}} />
         </div>
       </div>
-      <Invi pose="pulgar" size={tam} style={{left: `calc(50% - ${tamReal / 2}px)`, bottom: vertical ? '29%' : '20%'}} />
+      <Invi pose="pulgar" size={tam} style={{left: `calc(50% - ${tamReal / 2}px)`, bottom: vertical ? '35%' : '20%'}} />
     </AbsoluteFill>
   );
 };
@@ -310,8 +317,8 @@ const PlantillaMito = ({mito, verdad, dur}: {mito: string; verdad: string; dur: 
       <Sfx src="whoosh.mp3" at={0} vol={0.22} />
       <Sfx src="tachar.mp3" at={tTachar} vol={0.28} />
       <Sfx src="ding.mp3" at={tVerdad} vol={0.22} />
-      <Invi pose="sorpresa" size={300} desde={6} hasta={tVerdad - 8} style={{left: 10, bottom: vertical ? '27%' : '6%'}} />
-      <Invi pose="pulgar" size={300} desde={tVerdad} style={{left: 10, bottom: vertical ? '27%' : '6%'}} />
+      <Invi pose="sorpresa" size={300} desde={6} hasta={tVerdad - 8} style={{left: 10, bottom: vertical ? PERSONAJE_VERTICAL : '6%'}} />
+      <Invi pose="pulgar" size={300} desde={tVerdad} style={{left: 10, bottom: vertical ? PERSONAJE_VERTICAL : '6%'}} />
       <AbsoluteFill style={{background: `radial-gradient(circle at 50% 30%, rgba(245,196,0,${0.10 + 0.06 * brillo}) 0%, transparent 55%)`}} />
       <AbsoluteFill style={{alignItems: 'center', justifyContent: vertical ? 'flex-start' : 'center', paddingTop: vertical ? '16%' : 0, paddingLeft: vertical ? 0 : 280, gap: vertical ? 70 : 60, flexDirection: vertical ? 'column' : 'row'}}>
         <div style={{...tarjeta, opacity: Math.min(1, entraMito) * apagaMito, transform: `translateY(${(1 - entraMito) * -80}px) scale(${0.9 + 0.1 * entraMito})`}}>
@@ -365,7 +372,7 @@ const PlantillaLista = ({titulo, items, dur, inicio, captions}: {titulo?: string
       {momentos.map((m, k) => (
         <Sfx key={`pop${k}`} src="pop.mp3" at={m} vol={0.26} />
       ))}
-      <Invi pose="senala" size={260} desde={8} style={{left: 6, bottom: vertical ? '27%' : '4%'}} />
+      <Invi pose="senala" size={260} desde={8} style={{left: 6, bottom: vertical ? PERSONAJE_VERTICAL : '4%'}} />
       <AbsoluteFill style={{background: `radial-gradient(circle at 50% 25%, rgba(245,196,0,${0.09 + 0.05 * brillo}) 0%, transparent 55%)`}} />
       <AbsoluteFill style={{alignItems: 'center', justifyContent: 'flex-start', paddingTop: vertical ? '12%' : '5%', flexDirection: 'column', gap: vertical ? 26 : 16}}>
         {titulo && (
@@ -464,7 +471,7 @@ const PlantillaSiNo = ({titulo, si, no, tituloSi, tituloNo, dur, inicio, caption
       {momentosNo.map((m, k) => (
         <Sfx key={`no${k}`} src="pop.mp3" at={m} vol={0.26} />
       ))}
-      <Invi pose="senala" size={240} desde={8} style={{left: 6, bottom: vertical ? '27%' : '4%'}} />
+      <Invi pose="senala" size={240} desde={8} style={{left: 6, bottom: vertical ? PERSONAJE_VERTICAL : '4%'}} />
       <AbsoluteFill style={{background: `radial-gradient(circle at 50% 20%, rgba(245,196,0,${0.08 + 0.05 * brillo}) 0%, transparent 55%)`}} />
       <AbsoluteFill style={{alignItems: 'center', justifyContent: 'flex-start', paddingTop: vertical ? (pocos ? '20%' : '11%') : '5%', flexDirection: 'column', gap: vertical ? 26 : 16}}>
         {titulo && (
@@ -508,9 +515,7 @@ const SimboloClase = ({letra, size}: {letra: string; size: number}) => {
       </text>
     </svg>
   );
-};
-
-// Extintor dibujado con codigo
+};// Extintor dibujado con codigo
 const Extintor = ({size}: {size: number}) => (
   <svg width={size} height={size * 1.4} viewBox="0 0 100 140" style={{filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.45))'}}>
     <path d="M58 22 Q86 24 86 52 L86 70" stroke="#111" strokeWidth="6" fill="none" strokeLinecap="round" />
@@ -599,7 +604,7 @@ const PlantillaClase = ({letra, titulo, items, agente, nunca, dur, inicio, capti
           )}
         </div>
       </AbsoluteFill>
-      <Invi pose="senala" size={vertical ? 240 : 230} desde={10} style={{left: 6, bottom: vertical ? '27%' : '4%'}} />
+      <Invi pose="senala" size={vertical ? 240 : 230} desde={10} style={{left: 6, bottom: vertical ? PERSONAJE_VERTICAL : '4%'}} />
     </AbsoluteFill>
   );
 };
@@ -702,7 +707,7 @@ const PlantillaPasos = ({titulo, items, dur, inicio, captions}: {titulo?: string
           </div>
         )}
       </AbsoluteFill>
-      <Invi pose="senala" size={vertical ? 240 : 230} desde={8} style={{left: 6, bottom: vertical ? '27%' : '4%'}} />
+      <Invi pose="senala" size={vertical ? 240 : 230} desde={8} style={{left: 6, bottom: vertical ? PERSONAJE_VERTICAL : '4%'}} />
     </AbsoluteFill>
   );
 };
@@ -808,7 +813,7 @@ const PlantillaCalculo = ({titulo, items, resultado, cuandoResultado, dur, inici
           </div>
         )}
       </AbsoluteFill>
-      <Invi pose={termino ? 'pulgar' : 'senala'} size={vertical ? 230 : 220} desde={8} style={{left: 6, bottom: vertical ? '27%' : '4%'}} />
+      <Invi pose={termino ? 'pulgar' : 'senala'} size={vertical ? 230 : 220} desde={8} style={{left: 6, bottom: vertical ? PERSONAJE_VERTICAL : '4%'}} />
     </AbsoluteFill>
   );
 };
@@ -958,7 +963,7 @@ const PlantillaReto = ({p, dur, inicio, captions}: {p: Plantilla; dur: number; i
           return <div key={i} style={{position: 'absolute', left: `${x + Math.sin(dr / 8 + i) * 2}%`, top: `${y}%`, width: ancho, height: ancho * 0.55, background: colores[i % colores.length], borderRadius: 3, transform: `rotate(${giro}deg)`}} />;
         })}
 
-      <Invi pose={revelado ? 'pulgar' : 'sorpresa'} size={vertical ? 250 : 220} desde={Math.round(2.3 * fps)} style={{right: 10, bottom: vertical ? '25%' : '4%'}} />
+      <Invi pose={revelado ? 'pulgar' : 'sorpresa'} size={vertical ? 250 : 220} desde={Math.round(2.3 * fps)} style={{right: 10, bottom: vertical ? PERSONAJE_VERTICAL : '4%'}} />
     </AbsoluteFill>
   );
 };
@@ -1001,10 +1006,10 @@ const TarjetaSeccion = ({numero, titulo}: {numero: number; titulo: string}) => {
   const sale = interpolate(frame, [2.4 * fps, 3 * fps], [1, 0], fijo);
   const barra = interpolate(frame, [5, 25], [0, 1], fijo);
 
-  // En videos verticales la tarjeta va centrada, mas pequena y sin salirse de la pantalla
+  // En videos verticales la tarjeta va mas pequena y en la parte de arriba, para no chocar con los subtitulos
   if (height > width) {
     return (
-      <AbsoluteFill style={{background: `rgba(10,18,23,${0.6 * sale})`, justifyContent: 'center', alignItems: 'center', padding: '0 8%', opacity: sale}}>
+      <AbsoluteFill style={{background: `rgba(10,18,23,${0.6 * sale})`, justifyContent: 'flex-start', alignItems: 'center', padding: '24% 8% 0', opacity: sale}}>
         <div style={{textAlign: 'center', transform: `translateY(${(1 - entra) * 60}px)`, opacity: entra}}>
           <div style={{color: AMARILLO, fontSize: 110, fontWeight: 900, lineHeight: 1}}>{dosDigitos(numero)}</div>
           <div style={{width: 360 * barra, height: 10, background: AMARILLO, margin: '24px auto'}} />
@@ -1028,7 +1033,9 @@ const TarjetaSeccion = ({numero, titulo}: {numero: number; titulo: string}) => {
 // Titulo grande del inicio: visible desde el fotograma 0 (sirve tambien de portada)
 const TituloInicio = () => {
   const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
+  const {fps, width, height} = useVideoConfig();
+  // En vertical el titulo va mas arriba, para que no choque con los subtitulos (zona segura)
+  const vertical = height > width;
   const sale = interpolate(frame, [(SEGUNDOS_TITULO - 0.4) * fps, SEGUNDOS_TITULO * fps], [1, 0], fijo);
   const crece = interpolate(frame, [0, SEGUNDOS_TITULO * fps], [1, 1.05], fijo);
   const palabras = TITULO.toUpperCase().split(' ');
@@ -1038,7 +1045,7 @@ const TituloInicio = () => {
       <AbsoluteFill style={{background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 65%, transparent 100%)'}} />
       <div
         style={{
-          marginTop: '-18%',
+          marginTop: vertical ? '-60%' : '-18%',
           transform: `scale(${crece})`,
           textAlign: 'center',
           fontSize: palabras.join(' ').length > 34 ? 78 : 92,
@@ -1210,7 +1217,8 @@ const iconosPermitidos = (captions: Caption[]) => {
 // porque la voz habla a ritmo parejo.
 const SubtituloKaraoke = ({cap, t, permitidos}: {cap: Caption; t: number; permitidos: Set<string>}) => {
   const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
+  const {fps, width, height} = useVideoConfig();
+  const vertical = height > width;
   const palabras = cap.text.split(/\s+/).filter(Boolean);
   if (!palabras.length) return null;
 
@@ -1236,7 +1244,7 @@ const SubtituloKaraoke = ({cap, t, permitidos}: {cap: Caption; t: number; permit
   const popIcono = spring({frame: frame - Math.round(inicios[actual] * fps), fps, config: {damping: 9, stiffness: 200}});
 
   return (
-    <div style={{position: 'absolute', bottom: '22%', left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 8%'}}>
+    <div style={{position: 'absolute', bottom: vertical ? SUB_VERTICAL : '22%', left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 8%'}}>
       {tipoIcono && (
         <div style={{marginBottom: 14, transform: `scale(${Math.max(0, popIcono)}) rotate(${(1 - Math.min(1, popIcono)) * -25}deg)`}}>
           <IconoClave tipo={tipoIcono} size={120} />
@@ -1514,7 +1522,7 @@ export const MyComposition = ({captions, plan}: VideoProps) => {
       {actual && KARAOKE && <SubtituloKaraoke cap={actual} t={t} permitidos={iconosPermitidos(captions)} />}
 
       {actual && !KARAOKE && (
-        <div style={{position: 'absolute', bottom: '22%', left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 12%'}}>
+        <div style={{position: 'absolute', bottom: height > width ? SUB_VERTICAL : '22%', left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 12%'}}>
           <div style={{color: '#fff', fontSize: 58, fontWeight: 900, textAlign: 'center', lineHeight: 1.3, transform: `scale(${0.92 + 0.08 * pop})`, textShadow: '0 0 14px rgba(0,0,0,0.95), 0 4px 0 #000'}}>
             {actual.text}
           </div>
